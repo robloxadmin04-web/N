@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<!--
+============================================================
+web/server.html  -  settings page para sa isang server
+============================================================
+-->
+<html lang="tl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard - Server</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1 id="gname">Server</h1>
+  <a class="btn-ghost btn-sm btn" href="dashboard.html">Balik</a>
+</div>
+
+<div class="wrap">
+
+  <div class="tabs">
+    <button class="on" data-tab="settings">Settings</button>
+    <button data-tab="premium">Premium</button>
+    <button data-tab="status">Status Board</button>
+    <button data-tab="announce">Announce</button>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div class="tab-body on" id="tab-settings">
+
+    <div class="card">
+      <h2>Welcome</h2>
+      <div class="hint">Mensahe kapag may bagong sumali.</div>
+
+      <div class="row">
+        <span class="lbl">Buksan ang welcome</span>
+        <label class="switch">
+          <input type="checkbox" id="welcome_enabled"><span class="slider"></span>
+        </label>
+      </div>
+
+      <label>Channel</label>
+      <select id="welcome_channel_id"></select>
+
+      <label>Mensahe</label>
+      <textarea id="welcome_message"></textarea>
+      <div class="hint" style="margin-top:6px">
+        Pwedeng gamitin: {user} {username} {server} {count}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Autorole</h2>
+      <div class="hint">Role na awtomatikong ibibigay sa bagong member.</div>
+
+      <div class="row">
+        <span class="lbl">Buksan ang autorole</span>
+        <label class="switch">
+          <input type="checkbox" id="autorole_enabled"><span class="slider"></span>
+        </label>
+      </div>
+
+      <label>Role</label>
+      <select id="autorole_id"></select>
+    </div>
+
+    <div class="card">
+      <h2>Raid protection</h2>
+      <div class="hint">Hindi papapasukin ang masyadong bagong account.</div>
+
+      <div class="row">
+        <span class="lbl">Buksan ang proteksyon</span>
+        <label class="switch">
+          <input type="checkbox" id="raid_protection"><span class="slider"></span>
+        </label>
+      </div>
+
+      <label>Minimum na edad ng account (araw)</label>
+      <input type="number" id="min_account_age_days" min="0" max="365">
+    </div>
+
+    <div class="card">
+      <h2>Mga channel</h2>
+      <div class="hint">Saan ipapadala ng bot ang bawat uri ng mensahe.</div>
+
+      <label>Log channel</label>
+      <select id="log_channel_id"></select>
+
+      <label>Updates channel</label>
+      <select id="updates_channel_id"></select>
+
+      <label>Status board channel</label>
+      <select id="status_channel_id"></select>
+
+      <label>Prefix ng command</label>
+      <input type="text" id="prefix" maxlength="5">
+    </div>
+
+    <button class="btn-block" id="saveSettings">I save ang settings</button>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- ============ PREMIUM ============ -->
+  <div class="tab-body" id="tab-premium">
+
+    <div class="card">
+      <h2>Role ng bawat tier</h2>
+      <div class="hint">Anong Discord role ang ibibigay sa bawat tier.</div>
+
+      <label>Tier</label>
+      <input type="text" id="map_tier" value="basic" maxlength="30">
+
+      <label>Role</label>
+      <select id="map_role"></select>
+
+      <div class="spacer"></div>
+      <button class="btn-block btn-ghost" id="saveMapping">I save ang mapping</button>
+
+      <div class="spacer"></div>
+      <div id="mappings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Magdagdag ng premium</h2>
+      <div class="hint">Ang Discord ID, hindi ang username.</div>
+
+      <label>Discord ID</label>
+      <input type="text" id="pm_id" inputmode="numeric" placeholder="123456789012345678">
+
+      <label>Tier</label>
+      <input type="text" id="pm_tier" value="basic" maxlength="30">
+
+      <label>Ilang araw</label>
+      <input type="number" id="pm_days" value="30" min="1" max="3650">
+
+      <div class="spacer"></div>
+      <button class="btn-block" id="addPremium">Idagdag</button>
+    </div>
+
+    <div class="card">
+      <h2>Mga premium member</h2>
+      <div id="premiumList"><div class="empty">Kinukuha...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ STATUS ============ -->
+  <div class="tab-body" id="tab-status">
+
+    <div class="card">
+      <h2>Magdagdag ng entry</h2>
+      <div class="hint">Awtomatikong ma u update ang board sa Discord.</div>
+
+      <label>Pamagat</label>
+      <input type="text" id="st_title" placeholder="Blox Fruits Script">
+
+      <label>Laro (optional)</label>
+      <input type="text" id="st_game">
+
+      <label>Kalagayan</label>
+      <select id="st_state">
+        <option value="working">Working</option>
+        <option value="patched">Patched</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="unknown">Unknown</option>
+      </select>
+
+      <label>Note (optional)</label>
+      <input type="text" id="st_note">
+
+      <div class="spacer"></div>
+      <button class="btn-block" id="addStatus">Idagdag</button>
+    </div>
+
+    <div class="card">
+      <h2>Nasa board ngayon</h2>
+      <div id="statusList"><div class="empty">Kinukuha...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ANNOUNCE ============ -->
+  <div class="tab-body" id="tab-announce">
+    <div class="card">
+      <h2>Magpadala ng announcement</h2>
+      <div class="hint">Sa updates channel ito lalabas bilang embed.</div>
+
+      <label>Pamagat</label>
+      <input type="text" id="an_title">
+
+      <label>Laman</label>
+      <textarea id="an_body" style="min-height:150px"></textarea>
+
+      <label>Link (optional)</label>
+      <input type="text" id="an_url" placeholder="https://...">
+
+      <div class="spacer"></div>
+      <button class="btn-block" id="sendAnnounce">Ipadala</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+(async function () {
+  var session = await requireAuth();
+  if (!session) return;
+
+  var GID = qs('id');
+  if (!GID) {
+    window.location.replace('dashboard.html');
+    return;
+  }
+
+  var BASE = '/api/guilds/' + encodeURIComponent(GID);
+
+  // ---------- tabs ----------
+  document.querySelectorAll('.tabs button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.remove('on'); });
+      document.querySelectorAll('.tab-body').forEach(function (b) { b.classList.remove('on'); });
+      btn.classList.add('on');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('on');
+    });
+  });
+
+  // ---------- initial load ----------
+  var settings, channels, roles;
+
+  try {
+    var results = await Promise.all([
+      api(BASE + '/settings'),
+      api(BASE + '/channels'),
+      api(BASE + '/roles')
+    ]);
+    settings = results[0].settings;
+    channels = results[1].channels || [];
+    roles = results[2].roles || [];
+  } catch (e) {
+    toast(e.message, 'err');
+    return;
+  }
+
+  fillSelect(document.getElementById('welcome_channel_id'), channels, settings.welcome_channel_id, 'Walang napili');
+  fillSelect(document.getElementById('log_channel_id'), channels, settings.log_channel_id, 'Walang napili');
+  fillSelect(document.getElementById('updates_channel_id'), channels, settings.updates_channel_id, 'Walang napili');
+  fillSelect(document.getElementById('status_channel_id'), channels, settings.status_channel_id, 'Walang napili');
+  fillSelect(document.getElementById('autorole_id'), roles, settings.autorole_id, 'Walang napili');
+  fillSelect(document.getElementById('map_role'), roles, '', 'Pumili ng role');
+
+  document.getElementById('welcome_enabled').checked = !!settings.welcome_enabled;
+  document.getElementById('autorole_enabled').checked = !!settings.autorole_enabled;
+  document.getElementById('raid_protection').checked = !!settings.raid_protection;
+  document.getElementById('welcome_message').value = settings.welcome_message || '';
+  document.getElementById('min_account_age_days').value = settings.min_account_age_days || 0;
+  document.getElementById('prefix').value = settings.prefix || '!';
+
+  // ---------- save settings ----------
+  document.getElementById('saveSettings').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true;
+
+    var body = {
+      prefix: document.getElementById('prefix').value.trim() || '!',
+      welcome_enabled: document.getElementById('welcome_enabled').checked,
+      welcome_channel_id: document.getElementById('welcome_channel_id').value || null,
+      welcome_message: document.getElementById('welcome_message').value,
+      autorole_enabled: document.getElementById('autorole_enabled').checked,
+      autorole_id: document.getElementById('autorole_id').value || null,
+      log_channel_id: document.getElementById('log_channel_id').value || null,
+      updates_channel_id: document.getElementById('updates_channel_id').value || null,
+      status_channel_id: document.getElementById('status_channel_id').value || null,
+      raid_protection: document.getElementById('raid_protection').checked,
+      min_account_age_days: Number(document.getElementById('min_account_age_days').value || 0)
+    };
+
+    try {
+      await api(BASE + '/settings', { method: 'PUT', body: body });
+      toast('Na save na ang settings.', 'ok');
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+    btn.disabled = false;
+  });
+
+  // ---------- premium mapping ----------
+  async function loadMappings() {
+    var box = document.getElementById('mappings');
+    try {
+      var out = await api(BASE + '/premium-roles');
+      var list = out.mappings || [];
+
+      if (list.length === 0) {
+        box.innerHTML = '<div class="empty">Wala pang mapping.</div>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function (m) {
+        var role = roles.find(function (r) { return r.id === m.role_id; });
+        html += '<div class="item"><div><div class="t">' + esc(m.tier) + '</div>' +
+                '<div class="s">' + esc(role ? role.name : m.role_id) + '</div></div></div>';
+      });
+      box.innerHTML = html;
+    } catch (e) {
+      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    }
+  }
+
+  document.getElementById('saveMapping').addEventListener('click', async function () {
+    var tier = document.getElementById('map_tier').value.trim();
+    var roleId = document.getElementById('map_role').value;
+
+    if (!tier || !roleId) {
+      toast('Kailangan ng tier at role.', 'err');
+      return;
+    }
+
+    try {
+      await api(BASE + '/premium-roles', { method: 'PUT', body: { tier: tier, role_id: roleId } });
+      toast('Na save ang mapping.', 'ok');
+      loadMappings();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  });
+
+  // ---------- premium members ----------
+  async function loadPremium() {
+    var box = document.getElementById('premiumList');
+    try {
+      var out = await api(BASE + '/premium');
+      var list = out.members || [];
+
+      if (list.length === 0) {
+        box.innerHTML = '<div class="empty">Wala pang premium member.</div>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function (m) {
+        var left = daysLeft(m.expires_at);
+        var sub = fmtDate(m.expires_at);
+        if (left !== null) sub += left > 0 ? ' (' + left + ' araw pa)' : ' (expired na)';
+
+        html += '<div class="item">';
+        html += '<div style="min-width:0"><div class="t">' + esc(m.discord_id) + '</div>';
+        html += '<div class="s"><span class="badge premium">' + esc(m.tier) + '</span> ' + esc(sub) + '</div></div>';
+        html += '<button class="btn-danger" data-remove="' + esc(m.discord_id) + '">Alisin</button>';
+        html += '</div>';
+      });
+
+      box.innerHTML = html;
+
+      box.querySelectorAll('[data-remove]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          if (!confirm('Aalisin ang premium ng ' + btn.dataset.remove + '?')) return;
+          try {
+            await api(BASE + '/premium/' + encodeURIComponent(btn.dataset.remove), { method: 'DELETE' });
+            toast('Naalis na.', 'ok');
+            loadPremium();
+          } catch (e) {
+            toast(e.message, 'err');
+          }
+        });
+      });
+    } catch (e) {
+      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    }
+  }
+
+  document.getElementById('addPremium').addEventListener('click', async function () {
+    var id = document.getElementById('pm_id').value.trim();
+    var tier = document.getElementById('pm_tier').value.trim() || 'basic';
+    var days = Number(document.getElementById('pm_days').value || 30);
+
+    if (!/^[0-9]{15,25}$/.test(id)) {
+      toast('Mali ang Discord ID. Numero lang iyon.', 'err');
+      return;
+    }
+
+    try {
+      await api(BASE + '/premium', { method: 'POST', body: { discord_id: id, tier: tier, days: days } });
+      document.getElementById('pm_id').value = '';
+      toast('Naidagdag. Ilang minuto bago lumabas ang role.', 'ok');
+      loadPremium();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  });
+
+  // ---------- status board ----------
+  async function loadStatus() {
+    var box = document.getElementById('statusList');
+    try {
+      var out = await api(BASE + '/status');
+      var list = out.entries || [];
+
+      if (list.length === 0) {
+        box.innerHTML = '<div class="empty">Wala pang entry.</div>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function (e) {
+        html += '<div class="item">';
+        html += '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div>';
+        html += '<div class="s"><span class="badge ' + esc(e.state) + '">' + esc(e.state) + '</span> ' +
+                esc(e.game_name || '') + '</div></div>';
+        html += '<button class="btn-danger" data-del="' + esc(e.id) + '">Burahin</button>';
+        html += '</div>';
+      });
+
+      box.innerHTML = html;
+
+      box.querySelectorAll('[data-del]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          try {
+            await api(BASE + '/status/' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' });
+            toast('Nabura na.', 'ok');
+            loadStatus();
+          } catch (e) {
+            toast(e.message, 'err');
+          }
+        });
+      });
+    } catch (e) {
+      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    }
+  }
+
+  document.getElementById('addStatus').addEventListener('click', async function () {
+    var title = document.getElementById('st_title').value.trim();
+    if (!title) {
+      toast('Kailangan ng pamagat.', 'err');
+      return;
+    }
+
+    var body = {
+      title: title,
+      game_name: document.getElementById('st_game').value.trim() || null,
+      state: document.getElementById('st_state').value,
+      note: document.getElementById('st_note').value.trim() || null
+    };
+
+    try {
+      await api(BASE + '/status', { method: 'POST', body: body });
+      document.getElementById('st_title').value = '';
+      document.getElementById('st_game').value = '';
+      document.getElementById('st_note').value = '';
+      toast('Naidagdag sa board.', 'ok');
+      loadStatus();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  });
+
+  // ---------- announce ----------
+  document.getElementById('sendAnnounce').addEventListener('click', async function () {
+    var title = document.getElementById('an_title').value.trim();
+    var bodyText = document.getElementById('an_body').value.trim();
+
+    if (!title || !bodyText) {
+      toast('Kailangan ng pamagat at laman.', 'err');
+      return;
+    }
+
+    var btn = this;
+    btn.disabled = true;
+
+    try {
+      await api(BASE + '/announce', {
+        method: 'POST',
+        body: {
+          title: title,
+          body: bodyText,
+          url: document.getElementById('an_url').value.trim() || null
+        }
+      });
+      document.getElementById('an_title').value = '';
+      document.getElementById('an_body').value = '';
+      document.getElementById('an_url').value = '';
+      toast('Nakapila na. Ilang segundo lang.', 'ok');
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+
+    btn.disabled = false;
+  });
+
+  loadMappings();
+  loadPremium();
+  loadStatus();
+})();
+</script>
+
+</body>
+</html>

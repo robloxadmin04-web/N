@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!--
+============================================================
+web/dashboard.html  -  server picker
+============================================================
+-->
+<html lang="tl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard - Mga Server</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Mga Server</h1>
+  <div>
+    <span class="who" id="who"></span>
+    <button class="btn-ghost btn-sm" id="logoutBtn" style="margin-left:8px">Logout</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="list">
+    <div class="empty">Kinukuha ang listahan...</div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <a class="btn btn-ghost btn-block" id="inviteBtn" target="_blank" rel="noopener">
+    Idagdag ang bot sa bagong server
+  </a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+(async function () {
+  var session = await requireAuth();
+  if (!session) return;
+
+  document.getElementById('logoutBtn').addEventListener('click', signOut);
+  document.getElementById('inviteBtn').href = botInviteUrl(null);
+
+  var meta = session.user.user_metadata || {};
+  document.getElementById('who').textContent =
+    meta.full_name || meta.name || meta.user_name || '';
+
+  var list = document.getElementById('list');
+
+  var data;
+  try {
+    data = await api('/api/guilds');
+  } catch (e) {
+    list.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    return;
+  }
+
+  var guilds = data.guilds || [];
+
+  if (guilds.length === 0) {
+    list.innerHTML =
+      '<div class="empty">Walang server na kaya mong i manage.<br>' +
+      'Kailangan mong may Manage Server na permission.</div>';
+    return;
+  }
+
+  // Nauuna ang may bot na
+  guilds.sort(function (a, b) {
+    if (a.bot_present === b.bot_present) return a.name.localeCompare(b.name);
+    return a.bot_present ? -1 : 1;
+  });
+
+  var html = '';
+
+  guilds.forEach(function (g) {
+    html += '<div class="guild">';
+    html += guildIcon(g, 44);
+    html += '<div class="info">';
+    html += '<div class="name">' + esc(g.name) + '</div>';
+
+    if (g.bot_present) {
+      var sub = g.member_count ? g.member_count + ' members' : 'Nasa server ang bot';
+      html += '<div class="sub">' + esc(sub) + '</div>';
+    } else {
+      html += '<div class="sub">Wala pa ang bot dito</div>';
+    }
+
+    html += '</div>';
+
+    if (g.bot_present) {
+      html +=
+        '<a class="btn btn-sm" href="server.html?id=' + encodeURIComponent(g.id) + '">Buksan</a>';
+    } else {
+      html +=
+        '<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="' +
+        esc(botInviteUrl(g.id)) + '">Idagdag</a>';
+    }
+
+    html += '</div>';
+  });
+
+  list.innerHTML = html;
+})();
+</script>
+
+</body>
+</html>

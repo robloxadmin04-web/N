@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!--
+============================================================
+web/index.html  -  login page
+============================================================
+-->
+<html lang="tl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard - Login</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="center">
+  <div style="max-width:340px;width:100%">
+
+    <div class="logo">Server Dashboard</div>
+    <p style="color:#8b93a7;font-size:14px;margin-bottom:26px">
+      I manage ang bot mo nang hindi na kailangang mag memorya ng commands.
+    </p>
+
+    <button id="loginBtn" class="btn-block">Mag login gamit ang Discord</button>
+
+    <p style="color:#8b93a7;font-size:12px;margin-top:18px">
+      Makikita lang namin ang listahan ng server na kaya mong i manage.
+      Walang binabasa na mensahe.
+    </p>
+
+    <p id="checking" style="color:#8b93a7;font-size:13px;margin-top:20px">
+      Chinecheck kung naka login ka na...
+    </p>
+
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+(async function () {
+  var btn = document.getElementById('loginBtn');
+  var checking = document.getElementById('checking');
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    btn.textContent = 'Sandali lang...';
+    signIn();
+  });
+
+  var session = await getSession();
+  if (session) {
+    window.location.replace('dashboard.html');
+    return;
+  }
+
+  checking.style.display = 'none';
+})();
+</script>
+
+</body>
+</html>
