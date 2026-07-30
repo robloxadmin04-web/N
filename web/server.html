@@ -1,207 +1,283 @@
 <!DOCTYPE html>
-<!--
-============================================================
-web/server.html  -  settings page para sa isang server
-============================================================
--->
-<html lang="tl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard - Server</title>
+<meta name="color-scheme" content="dark">
+<title>Server - Helium</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="topbar">
-  <h1 id="gname">Server</h1>
-  <a class="btn-ghost btn-sm btn" href="dashboard.html">Balik</a>
-</div>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="iconbtn" href="dashboard.html" title="Back to servers">
+      <span class="sr-only">Back to servers</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 3.5 5.5 8l4.5 4.5"/>
+      </svg>
+    </a>
 
-<div class="wrap">
+    <div class="title">
+      <h1 id="guildName">Server</h1>
+      <div class="meta" id="guildMeta">Loading configuration</div>
+    </div>
+  </div>
+</header>
 
-  <div class="tabs">
-    <button class="on" data-tab="settings">Settings</button>
-    <button data-tab="premium">Premium</button>
-    <button data-tab="status">Status Board</button>
-    <button data-tab="announce">Announce</button>
+<main class="page">
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-panel="settings">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.8"/><circle cx="10" cy="11.5" r="1.8"/></svg>
+      <span>Settings</span>
+    </button>
+    <button role="tab" aria-selected="false" data-panel="premium">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8 10 6l4.4.5-3.3 3 .9 4.4L8 11.8 4 13.9l.9-4.4-3.3-3L6 6z"/></svg>
+      <span>Premium</span>
+    </button>
+    <button role="tab" aria-selected="false" data-panel="status">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></svg>
+      <span>Status</span>
+    </button>
+    <button role="tab" aria-selected="false" data-panel="announce">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5v3a1 1 0 0 0 1 1h1.8L10 13.5v-11L5.3 5.5H3.5a1 1 0 0 0-1 1z"/><path d="M12.4 5.6a3.4 3.4 0 0 1 0 4.8"/></svg>
+      <span>Announce</span>
+    </button>
   </div>
 
-  <!-- ============ SETTINGS ============ -->
-  <div class="tab-body on" id="tab-settings">
+  <!-- ================= SETTINGS ================= -->
+  <section class="panel" data-open="true" id="panel-settings">
 
     <div class="card">
-      <h2>Welcome</h2>
-      <div class="hint">Mensahe kapag may bagong sumali.</div>
+      <h2>Welcome message</h2>
+      <p class="desc">Posted as an embed when someone joins.</p>
 
-      <div class="row">
-        <span class="lbl">Buksan ang welcome</span>
+      <div class="toggle-row">
+        <div class="tl">
+          <div class="t">Enabled</div>
+          <div class="s">Turn the greeting on or off</div>
+        </div>
         <label class="switch">
-          <input type="checkbox" id="welcome_enabled"><span class="slider"></span>
+          <input type="checkbox" id="welcome_enabled">
+          <span class="sr-only">Enable welcome message</span>
+          <span class="track"></span>
         </label>
       </div>
 
-      <label>Channel</label>
-      <select id="welcome_channel_id"></select>
+      <div class="divider"></div>
 
-      <label>Mensahe</label>
-      <textarea id="welcome_message"></textarea>
-      <div class="hint" style="margin-top:6px">
-        Pwedeng gamitin: {user} {username} {server} {count}
+      <div class="field">
+        <label class="lbl" for="welcome_channel_id">Channel</label>
+        <select id="welcome_channel_id"></select>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="welcome_message">Message</label>
+        <textarea id="welcome_message"></textarea>
+        <p class="help">Placeholders: {user} {username} {server} {count}</p>
       </div>
     </div>
 
     <div class="card">
-      <h2>Autorole</h2>
-      <div class="hint">Role na awtomatikong ibibigay sa bagong member.</div>
+      <h2>Auto role</h2>
+      <p class="desc">Assigned automatically to every new member.</p>
 
-      <div class="row">
-        <span class="lbl">Buksan ang autorole</span>
+      <div class="toggle-row">
+        <div class="tl">
+          <div class="t">Enabled</div>
+          <div class="s">Grant a role on join</div>
+        </div>
         <label class="switch">
-          <input type="checkbox" id="autorole_enabled"><span class="slider"></span>
+          <input type="checkbox" id="autorole_enabled">
+          <span class="sr-only">Enable auto role</span>
+          <span class="track"></span>
         </label>
       </div>
 
-      <label>Role</label>
-      <select id="autorole_id"></select>
+      <div class="divider"></div>
+
+      <div class="field">
+        <label class="lbl" for="autorole_id">Role</label>
+        <select id="autorole_id"></select>
+      </div>
     </div>
 
     <div class="card">
       <h2>Raid protection</h2>
-      <div class="hint">Hindi papapasukin ang masyadong bagong account.</div>
+      <p class="desc">Holds accounts that were created very recently.</p>
 
-      <div class="row">
-        <span class="lbl">Buksan ang proteksyon</span>
+      <div class="toggle-row">
+        <div class="tl">
+          <div class="t">Enabled</div>
+          <div class="s">Screen new accounts on join</div>
+        </div>
         <label class="switch">
-          <input type="checkbox" id="raid_protection"><span class="slider"></span>
+          <input type="checkbox" id="raid_protection">
+          <span class="sr-only">Enable raid protection</span>
+          <span class="track"></span>
         </label>
       </div>
 
-      <label>Minimum na edad ng account (araw)</label>
-      <input type="number" id="min_account_age_days" min="0" max="365">
+      <div class="divider"></div>
+
+      <div class="field">
+        <label class="lbl" for="min_account_age_days">Minimum account age in days</label>
+        <input type="number" id="min_account_age_days" min="0" max="365" inputmode="numeric">
+      </div>
     </div>
 
     <div class="card">
-      <h2>Mga channel</h2>
-      <div class="hint">Saan ipapadala ng bot ang bawat uri ng mensahe.</div>
+      <h2>Channels</h2>
+      <p class="desc">Where Helium posts each kind of message.</p>
 
-      <label>Log channel</label>
-      <select id="log_channel_id"></select>
+      <div class="field">
+        <label class="lbl" for="log_channel_id">Moderation log</label>
+        <select id="log_channel_id"></select>
+      </div>
 
-      <label>Updates channel</label>
-      <select id="updates_channel_id"></select>
+      <div class="field">
+        <label class="lbl" for="updates_channel_id">Announcements</label>
+        <select id="updates_channel_id"></select>
+      </div>
 
-      <label>Status board channel</label>
-      <select id="status_channel_id"></select>
+      <div class="field">
+        <label class="lbl" for="status_channel_id">Status board</label>
+        <select id="status_channel_id"></select>
+        <p class="help">Helium keeps one pinned embed here and edits it in place.</p>
+      </div>
 
-      <label>Prefix ng command</label>
-      <input type="text" id="prefix" maxlength="5">
+      <div class="field">
+        <label class="lbl" for="prefix">Command prefix</label>
+        <input type="text" id="prefix" maxlength="5">
+      </div>
     </div>
 
-    <button class="btn-block" id="saveSettings">I save ang settings</button>
-    <div class="spacer"></div>
-  </div>
+    <button class="btn btn-primary btn-block btn-lg" id="saveSettings" type="button">Save changes</button>
+  </section>
 
-  <!-- ============ PREMIUM ============ -->
-  <div class="tab-body" id="tab-premium">
-
-    <div class="card">
-      <h2>Role ng bawat tier</h2>
-      <div class="hint">Anong Discord role ang ibibigay sa bawat tier.</div>
-
-      <label>Tier</label>
-      <input type="text" id="map_tier" value="basic" maxlength="30">
-
-      <label>Role</label>
-      <select id="map_role"></select>
-
-      <div class="spacer"></div>
-      <button class="btn-block btn-ghost" id="saveMapping">I save ang mapping</button>
-
-      <div class="spacer"></div>
-      <div id="mappings"></div>
-    </div>
+  <!-- ================= PREMIUM ================= -->
+  <section class="panel" id="panel-premium">
 
     <div class="card">
-      <h2>Magdagdag ng premium</h2>
-      <div class="hint">Ang Discord ID, hindi ang username.</div>
+      <h2>Tier to role mapping</h2>
+      <p class="desc">Which Discord role each paid tier receives.</p>
 
-      <label>Discord ID</label>
-      <input type="text" id="pm_id" inputmode="numeric" placeholder="123456789012345678">
+      <div class="field">
+        <label class="lbl" for="map_tier">Tier name</label>
+        <input type="text" id="map_tier" value="basic" maxlength="30">
+      </div>
 
-      <label>Tier</label>
-      <input type="text" id="pm_tier" value="basic" maxlength="30">
+      <div class="field">
+        <label class="lbl" for="map_role">Role</label>
+        <select id="map_role"></select>
+        <p class="help">Helium must sit above this role in the server role list.</p>
+      </div>
 
-      <label>Ilang araw</label>
-      <input type="number" id="pm_days" value="30" min="1" max="3650">
+      <button class="btn btn-outline btn-block" id="saveMapping" type="button">Save mapping</button>
 
-      <div class="spacer"></div>
-      <button class="btn-block" id="addPremium">Idagdag</button>
+      <div class="divider"></div>
+      <div id="mappingList"></div>
     </div>
 
     <div class="card">
-      <h2>Mga premium member</h2>
-      <div id="premiumList"><div class="empty">Kinukuha...</div></div>
-    </div>
-  </div>
+      <h2>Grant access</h2>
+      <p class="desc">Enter the numeric Discord ID, not the username.</p>
 
-  <!-- ============ STATUS ============ -->
-  <div class="tab-body" id="tab-status">
+      <div class="field">
+        <label class="lbl" for="pm_id">Discord ID</label>
+        <input type="text" id="pm_id" inputmode="numeric" placeholder="123456789012345678">
+      </div>
 
-    <div class="card">
-      <h2>Magdagdag ng entry</h2>
-      <div class="hint">Awtomatikong ma u update ang board sa Discord.</div>
+      <div class="field">
+        <label class="lbl" for="pm_tier">Tier</label>
+        <input type="text" id="pm_tier" value="basic" maxlength="30">
+      </div>
 
-      <label>Pamagat</label>
-      <input type="text" id="st_title" placeholder="Blox Fruits Script">
+      <div class="field">
+        <label class="lbl" for="pm_days">Duration in days</label>
+        <input type="number" id="pm_days" value="30" min="1" max="3650" inputmode="numeric">
+      </div>
 
-      <label>Laro (optional)</label>
-      <input type="text" id="st_game">
-
-      <label>Kalagayan</label>
-      <select id="st_state">
-        <option value="working">Working</option>
-        <option value="patched">Patched</option>
-        <option value="maintenance">Maintenance</option>
-        <option value="unknown">Unknown</option>
-      </select>
-
-      <label>Note (optional)</label>
-      <input type="text" id="st_note">
-
-      <div class="spacer"></div>
-      <button class="btn-block" id="addStatus">Idagdag</button>
+      <button class="btn btn-primary btn-block" id="addPremium" type="button">Grant premium</button>
     </div>
 
     <div class="card">
-      <h2>Nasa board ngayon</h2>
-      <div id="statusList"><div class="empty">Kinukuha...</div></div>
+      <h2>Members</h2>
+      <p class="desc">Roles are reconciled every five minutes.</p>
+      <div id="premiumList"></div>
     </div>
-  </div>
+  </section>
 
-  <!-- ============ ANNOUNCE ============ -->
-  <div class="tab-body" id="tab-announce">
+  <!-- ================= STATUS ================= -->
+  <section class="panel" id="panel-status">
+
     <div class="card">
-      <h2>Magpadala ng announcement</h2>
-      <div class="hint">Sa updates channel ito lalabas bilang embed.</div>
+      <h2>Add an entry</h2>
+      <p class="desc">The board in Discord updates itself after every change.</p>
 
-      <label>Pamagat</label>
-      <input type="text" id="an_title">
+      <div class="field">
+        <label class="lbl" for="st_title">Title</label>
+        <input type="text" id="st_title" placeholder="Blox Fruits">
+      </div>
 
-      <label>Laman</label>
-      <textarea id="an_body" style="min-height:150px"></textarea>
+      <div class="field">
+        <label class="lbl" for="st_game">Game</label>
+        <input type="text" id="st_game" placeholder="Optional">
+      </div>
 
-      <label>Link (optional)</label>
-      <input type="text" id="an_url" placeholder="https://...">
+      <div class="field">
+        <label class="lbl" for="st_state">State</label>
+        <select id="st_state">
+          <option value="working">Working</option>
+          <option value="patched">Patched</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
 
-      <div class="spacer"></div>
-      <button class="btn-block" id="sendAnnounce">Ipadala</button>
+      <div class="field">
+        <label class="lbl" for="st_note">Note</label>
+        <input type="text" id="st_note" placeholder="Optional">
+      </div>
+
+      <button class="btn btn-primary btn-block" id="addStatus" type="button">Add entry</button>
     </div>
-  </div>
 
-</div>
+    <div class="card">
+      <h2>Current board</h2>
+      <div id="statusList"></div>
+    </div>
+  </section>
 
-<div id="toast" class="toast"></div>
+  <!-- ================= ANNOUNCE ================= -->
+  <section class="panel" id="panel-announce">
+    <div class="card">
+      <h2>Post an announcement</h2>
+      <p class="desc">Sent to the announcements channel as an embed.</p>
+
+      <div class="field">
+        <label class="lbl" for="an_title">Title</label>
+        <input type="text" id="an_title">
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="an_body">Body</label>
+        <textarea id="an_body" style="min-height:160px"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="an_url">Link</label>
+        <input type="text" id="an_url" placeholder="Optional">
+      </div>
+
+      <button class="btn btn-primary btn-block" id="sendAnnounce" type="button">Post announcement</button>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -219,39 +295,55 @@ web/server.html  -  settings page para sa isang server
 
   var BASE = '/api/guilds/' + encodeURIComponent(GID);
 
+  var STATE_STYLE = {
+    working: 'solid',
+    patched: 'hollow',
+    maintenance: 'half',
+    unknown: 'hollow'
+  };
+
   // ---------- tabs ----------
-  document.querySelectorAll('.tabs button').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.remove('on'); });
-      document.querySelectorAll('.tab-body').forEach(function (b) { b.classList.remove('on'); });
-      btn.classList.add('on');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('on');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) { t.setAttribute('aria-selected', 'false'); });
+      document.querySelectorAll('.panel').forEach(function (p) {
+        p.setAttribute('data-open', 'false');
+      });
+      tab.setAttribute('aria-selected', 'true');
+      document.getElementById('panel-' + tab.dataset.panel).setAttribute('data-open', 'true');
+      window.scrollTo(0, 0);
     });
   });
 
-  // ---------- initial load ----------
+  // ---------- load ----------
   var settings, channels, roles;
 
   try {
-    var results = await Promise.all([
+    var loaded = await Promise.all([
       api(BASE + '/settings'),
       api(BASE + '/channels'),
       api(BASE + '/roles')
     ]);
-    settings = results[0].settings;
-    channels = results[1].channels || [];
-    roles = results[2].roles || [];
+    settings = loaded[0].settings;
+    channels = loaded[1].channels || [];
+    roles = loaded[2].roles || [];
   } catch (e) {
-    toast(e.message, 'err');
+    document.getElementById('guildMeta').textContent = 'Failed to load';
+    notify(e.message, 'error');
     return;
   }
 
-  fillSelect(document.getElementById('welcome_channel_id'), channels, settings.welcome_channel_id, 'Walang napili');
-  fillSelect(document.getElementById('log_channel_id'), channels, settings.log_channel_id, 'Walang napili');
-  fillSelect(document.getElementById('updates_channel_id'), channels, settings.updates_channel_id, 'Walang napili');
-  fillSelect(document.getElementById('status_channel_id'), channels, settings.status_channel_id, 'Walang napili');
-  fillSelect(document.getElementById('autorole_id'), roles, settings.autorole_id, 'Walang napili');
-  fillSelect(document.getElementById('map_role'), roles, '', 'Pumili ng role');
+  document.getElementById('guildMeta').textContent =
+    channels.length + ' channels, ' + roles.length + ' roles';
+
+  fillSelect(document.getElementById('welcome_channel_id'), channels, settings.welcome_channel_id, 'Not set');
+  fillSelect(document.getElementById('log_channel_id'), channels, settings.log_channel_id, 'Not set');
+  fillSelect(document.getElementById('updates_channel_id'), channels, settings.updates_channel_id, 'Not set');
+  fillSelect(document.getElementById('status_channel_id'), channels, settings.status_channel_id, 'Not set');
+  fillSelect(document.getElementById('autorole_id'), roles, settings.autorole_id, 'Not set');
+  fillSelect(document.getElementById('map_role'), roles, '', 'Select a role');
 
   document.getElementById('welcome_enabled').checked = !!settings.welcome_enabled;
   document.getElementById('autorole_enabled').checked = !!settings.autorole_enabled;
@@ -265,50 +357,55 @@ web/server.html  -  settings page para sa isang server
     var btn = this;
     btn.disabled = true;
 
-    var body = {
-      prefix: document.getElementById('prefix').value.trim() || '!',
-      welcome_enabled: document.getElementById('welcome_enabled').checked,
-      welcome_channel_id: document.getElementById('welcome_channel_id').value || null,
-      welcome_message: document.getElementById('welcome_message').value,
-      autorole_enabled: document.getElementById('autorole_enabled').checked,
-      autorole_id: document.getElementById('autorole_id').value || null,
-      log_channel_id: document.getElementById('log_channel_id').value || null,
-      updates_channel_id: document.getElementById('updates_channel_id').value || null,
-      status_channel_id: document.getElementById('status_channel_id').value || null,
-      raid_protection: document.getElementById('raid_protection').checked,
-      min_account_age_days: Number(document.getElementById('min_account_age_days').value || 0)
-    };
-
     try {
-      await api(BASE + '/settings', { method: 'PUT', body: body });
-      toast('Na save na ang settings.', 'ok');
+      await api(BASE + '/settings', {
+        method: 'PUT',
+        body: {
+          prefix: document.getElementById('prefix').value.trim() || '!',
+          welcome_enabled: document.getElementById('welcome_enabled').checked,
+          welcome_channel_id: document.getElementById('welcome_channel_id').value || null,
+          welcome_message: document.getElementById('welcome_message').value,
+          autorole_enabled: document.getElementById('autorole_enabled').checked,
+          autorole_id: document.getElementById('autorole_id').value || null,
+          log_channel_id: document.getElementById('log_channel_id').value || null,
+          updates_channel_id: document.getElementById('updates_channel_id').value || null,
+          status_channel_id: document.getElementById('status_channel_id').value || null,
+          raid_protection: document.getElementById('raid_protection').checked,
+          min_account_age_days: Number(document.getElementById('min_account_age_days').value || 0)
+        }
+      });
+      notify('Settings saved.');
     } catch (e) {
-      toast(e.message, 'err');
+      notify(e.message, 'error');
     }
+
     btn.disabled = false;
   });
 
-  // ---------- premium mapping ----------
+  // ---------- mappings ----------
   async function loadMappings() {
-    var box = document.getElementById('mappings');
+    var box = document.getElementById('mappingList');
+
     try {
       var out = await api(BASE + '/premium-roles');
       var list = out.mappings || [];
 
-      if (list.length === 0) {
-        box.innerHTML = '<div class="empty">Wala pang mapping.</div>';
+      if (!list.length) {
+        box.innerHTML = emptyState('No mapping yet', 'Premium members cannot receive a role until one exists.');
         return;
       }
 
-      var html = '';
-      list.forEach(function (m) {
+      box.innerHTML = list.map(function (m) {
         var role = roles.find(function (r) { return r.id === m.role_id; });
-        html += '<div class="item"><div><div class="t">' + esc(m.tier) + '</div>' +
-                '<div class="s">' + esc(role ? role.name : m.role_id) + '</div></div></div>';
-      });
-      box.innerHTML = html;
+        return (
+          '<div class="item"><div class="item-body">' +
+            '<div class="item-title">' + esc(m.tier) + '</div>' +
+            '<div class="item-sub">' + esc(role ? role.name : 'Deleted role') + '</div>' +
+          '</div></div>'
+        );
+      }).join('');
     } catch (e) {
-      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+      box.innerHTML = emptyState('Could not load mappings', e.message);
     }
   }
 
@@ -317,60 +414,64 @@ web/server.html  -  settings page para sa isang server
     var roleId = document.getElementById('map_role').value;
 
     if (!tier || !roleId) {
-      toast('Kailangan ng tier at role.', 'err');
+      notify('Pick a tier name and a role first.', 'error');
       return;
     }
 
     try {
       await api(BASE + '/premium-roles', { method: 'PUT', body: { tier: tier, role_id: roleId } });
-      toast('Na save ang mapping.', 'ok');
+      notify('Mapping saved.');
       loadMappings();
     } catch (e) {
-      toast(e.message, 'err');
+      notify(e.message, 'error');
     }
   });
 
   // ---------- premium members ----------
   async function loadPremium() {
     var box = document.getElementById('premiumList');
+
     try {
       var out = await api(BASE + '/premium');
       var list = out.members || [];
 
-      if (list.length === 0) {
-        box.innerHTML = '<div class="empty">Wala pang premium member.</div>';
+      if (!list.length) {
+        box.innerHTML = emptyState('No premium members', 'Granted members will appear here.');
         return;
       }
 
-      var html = '';
-      list.forEach(function (m) {
-        var left = daysLeft(m.expires_at);
-        var sub = fmtDate(m.expires_at);
-        if (left !== null) sub += left > 0 ? ' (' + left + ' araw pa)' : ' (expired na)';
-
-        html += '<div class="item">';
-        html += '<div style="min-width:0"><div class="t">' + esc(m.discord_id) + '</div>';
-        html += '<div class="s"><span class="badge premium">' + esc(m.tier) + '</span> ' + esc(sub) + '</div></div>';
-        html += '<button class="btn-danger" data-remove="' + esc(m.discord_id) + '">Alisin</button>';
-        html += '</div>';
-      });
-
-      box.innerHTML = html;
+      box.innerHTML = list.map(function (m) {
+        return (
+          '<div class="item">' +
+            '<div class="item-body">' +
+              '<div class="item-title mono">' + esc(m.discord_id) + '</div>' +
+              '<div class="item-sub">' +
+                '<span class="badge half">' + esc(m.tier) + '</span>' +
+                '<span>' + esc(formatDate(m.expires_at)) + '</span>' +
+                '<span>' + esc(expiryLabel(m.expires_at)) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<button class="iconbtn" data-remove="' + esc(m.discord_id) + '" type="button" title="Revoke">' +
+              '<span class="sr-only">Revoke premium</span>' + icon('trash') +
+            '</button>' +
+          '</div>'
+        );
+      }).join('');
 
       box.querySelectorAll('[data-remove]').forEach(function (btn) {
         btn.addEventListener('click', async function () {
-          if (!confirm('Aalisin ang premium ng ' + btn.dataset.remove + '?')) return;
+          if (!confirm('Revoke premium for ' + btn.dataset.remove + '?')) return;
           try {
             await api(BASE + '/premium/' + encodeURIComponent(btn.dataset.remove), { method: 'DELETE' });
-            toast('Naalis na.', 'ok');
+            notify('Premium revoked.');
             loadPremium();
           } catch (e) {
-            toast(e.message, 'err');
+            notify(e.message, 'error');
           }
         });
       });
     } catch (e) {
-      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+      box.innerHTML = emptyState('Could not load members', e.message);
     }
   }
 
@@ -380,93 +481,113 @@ web/server.html  -  settings page para sa isang server
     var days = Number(document.getElementById('pm_days').value || 30);
 
     if (!/^[0-9]{15,25}$/.test(id)) {
-      toast('Mali ang Discord ID. Numero lang iyon.', 'err');
+      notify('That does not look like a Discord ID. It should be digits only.', 'error');
       return;
     }
+
+    var btn = this;
+    btn.disabled = true;
 
     try {
       await api(BASE + '/premium', { method: 'POST', body: { discord_id: id, tier: tier, days: days } });
       document.getElementById('pm_id').value = '';
-      toast('Naidagdag. Ilang minuto bago lumabas ang role.', 'ok');
+      notify('Granted. The role is applied within five minutes.');
       loadPremium();
     } catch (e) {
-      toast(e.message, 'err');
+      notify(e.message, 'error');
     }
+
+    btn.disabled = false;
   });
 
   // ---------- status board ----------
   async function loadStatus() {
     var box = document.getElementById('statusList');
+
     try {
       var out = await api(BASE + '/status');
       var list = out.entries || [];
 
-      if (list.length === 0) {
-        box.innerHTML = '<div class="empty">Wala pang entry.</div>';
+      if (!list.length) {
+        box.innerHTML = emptyState('The board is empty', 'Entries you add appear here and in Discord.');
         return;
       }
 
-      var html = '';
-      list.forEach(function (e) {
-        html += '<div class="item">';
-        html += '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div>';
-        html += '<div class="s"><span class="badge ' + esc(e.state) + '">' + esc(e.state) + '</span> ' +
-                esc(e.game_name || '') + '</div></div>';
-        html += '<button class="btn-danger" data-del="' + esc(e.id) + '">Burahin</button>';
-        html += '</div>';
-      });
-
-      box.innerHTML = html;
+      box.innerHTML = list.map(function (e) {
+        var style = STATE_STYLE[e.state] || 'hollow';
+        return (
+          '<div class="item">' +
+            '<div class="item-body">' +
+              '<div class="item-title">' + esc(e.title) + '</div>' +
+              '<div class="item-sub">' +
+                '<span class="badge ' + style + '"><span class="dot"></span>' + esc(e.state) + '</span>' +
+                (e.game_name ? '<span>' + esc(e.game_name) + '</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<button class="iconbtn" data-del="' + esc(e.id) + '" type="button" title="Delete">' +
+              '<span class="sr-only">Delete entry</span>' + icon('trash') +
+            '</button>' +
+          '</div>'
+        );
+      }).join('');
 
       box.querySelectorAll('[data-del]').forEach(function (btn) {
         btn.addEventListener('click', async function () {
           try {
             await api(BASE + '/status/' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' });
-            toast('Nabura na.', 'ok');
+            notify('Entry removed.');
             loadStatus();
           } catch (e) {
-            toast(e.message, 'err');
+            notify(e.message, 'error');
           }
         });
       });
     } catch (e) {
-      box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+      box.innerHTML = emptyState('Could not load the board', e.message);
     }
   }
 
   document.getElementById('addStatus').addEventListener('click', async function () {
     var title = document.getElementById('st_title').value.trim();
+
     if (!title) {
-      toast('Kailangan ng pamagat.', 'err');
+      notify('A title is required.', 'error');
       return;
     }
 
-    var body = {
-      title: title,
-      game_name: document.getElementById('st_game').value.trim() || null,
-      state: document.getElementById('st_state').value,
-      note: document.getElementById('st_note').value.trim() || null
-    };
+    var btn = this;
+    btn.disabled = true;
 
     try {
-      await api(BASE + '/status', { method: 'POST', body: body });
+      await api(BASE + '/status', {
+        method: 'POST',
+        body: {
+          title: title,
+          game_name: document.getElementById('st_game').value.trim() || null,
+          state: document.getElementById('st_state').value,
+          note: document.getElementById('st_note').value.trim() || null
+        }
+      });
+
       document.getElementById('st_title').value = '';
       document.getElementById('st_game').value = '';
       document.getElementById('st_note').value = '';
-      toast('Naidagdag sa board.', 'ok');
+      notify('Entry added.');
       loadStatus();
     } catch (e) {
-      toast(e.message, 'err');
+      notify(e.message, 'error');
     }
+
+    btn.disabled = false;
   });
 
   // ---------- announce ----------
   document.getElementById('sendAnnounce').addEventListener('click', async function () {
     var title = document.getElementById('an_title').value.trim();
-    var bodyText = document.getElementById('an_body').value.trim();
+    var body = document.getElementById('an_body').value.trim();
 
-    if (!title || !bodyText) {
-      toast('Kailangan ng pamagat at laman.', 'err');
+    if (!title || !body) {
+      notify('Both a title and a body are required.', 'error');
       return;
     }
 
@@ -478,16 +599,17 @@ web/server.html  -  settings page para sa isang server
         method: 'POST',
         body: {
           title: title,
-          body: bodyText,
+          body: body,
           url: document.getElementById('an_url').value.trim() || null
         }
       });
+
       document.getElementById('an_title').value = '';
       document.getElementById('an_body').value = '';
       document.getElementById('an_url').value = '';
-      toast('Nakapila na. Ilang segundo lang.', 'ok');
+      notify('Queued. It posts within a few seconds.');
     } catch (e) {
-      toast(e.message, 'err');
+      notify(e.message, 'error');
     }
 
     btn.disabled = false;
