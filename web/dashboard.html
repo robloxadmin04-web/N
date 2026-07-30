@@ -1,39 +1,55 @@
 <!DOCTYPE html>
-<!--
-============================================================
-web/dashboard.html  -  server picker
-============================================================
--->
-<html lang="tl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard - Mga Server</title>
+<meta name="color-scheme" content="dark">
+<title>Servers - Helium</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="topbar">
-  <h1>Mga Server</h1>
-  <div>
-    <span class="who" id="who"></span>
-    <button class="btn-ghost btn-sm" id="logoutBtn" style="margin-left:8px">Logout</button>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="mark mark-sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2.6 20.2 7v10L12 21.4 3.8 17V7z"/>
+        <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+
+    <div class="title">
+      <h1>Servers</h1>
+      <div class="meta" id="who"></div>
+    </div>
+
+    <button class="iconbtn" id="signout" type="button" title="Sign out">
+      <span class="sr-only">Sign out</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 14H3.5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1H6"/>
+        <path d="M10.5 11.5 14 8l-3.5-3.5M14 8H6"/>
+      </svg>
+    </button>
   </div>
-</div>
+</header>
 
-<div class="wrap">
-  <div id="list">
-    <div class="empty">Kinukuha ang listahan...</div>
-  </div>
+<main class="page">
 
-  <div class="spacer"></div>
+  <div id="managed"></div>
+  <div id="available"></div>
 
-  <a class="btn btn-ghost btn-block" id="inviteBtn" target="_blank" rel="noopener">
-    Idagdag ang bot sa bagong server
+  <div class="divider"></div>
+
+  <a class="btn btn-quiet btn-block" id="invite" target="_blank" rel="noopener">
+    <span id="inviteIcon"></span>
+    <span>Add Helium to another server</span>
   </a>
-</div>
 
-<div id="toast" class="toast"></div>
+  <p class="footnote">Only servers where you have Manage Server are listed.</p>
+
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -43,68 +59,81 @@ web/dashboard.html  -  server picker
   var session = await requireAuth();
   if (!session) return;
 
-  document.getElementById('logoutBtn').addEventListener('click', signOut);
-  document.getElementById('inviteBtn').href = botInviteUrl(null);
+  document.getElementById('signout').addEventListener('click', signOut);
+  document.getElementById('invite').href = botInviteUrl(null);
+  document.getElementById('inviteIcon').innerHTML = icon('plus');
 
   var meta = session.user.user_metadata || {};
   document.getElementById('who').textContent =
     meta.full_name || meta.name || meta.user_name || '';
 
-  var list = document.getElementById('list');
+  var managed = document.getElementById('managed');
+  var available = document.getElementById('available');
 
-  var data;
+  managed.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+
+  var guilds;
   try {
-    data = await api('/api/guilds');
+    var data = await api('/api/guilds');
+    guilds = data.guilds || [];
   } catch (e) {
-    list.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    managed.innerHTML = emptyState('Could not load your servers', e.message);
     return;
   }
-
-  var guilds = data.guilds || [];
 
   if (guilds.length === 0) {
-    list.innerHTML =
-      '<div class="empty">Walang server na kaya mong i manage.<br>' +
-      'Kailangan mong may Manage Server na permission.</div>';
+    managed.innerHTML = emptyState(
+      'No servers found',
+      'You need the Manage Server permission on at least one Discord server.'
+    );
     return;
   }
 
-  // Nauuna ang may bot na
-  guilds.sort(function (a, b) {
-    if (a.bot_present === b.bot_present) return a.name.localeCompare(b.name);
-    return a.bot_present ? -1 : 1;
-  });
+  guilds.sort(function (a, b) { return a.name.localeCompare(b.name); });
 
-  var html = '';
+  var active = guilds.filter(function (g) { return g.bot_present; });
+  var pending = guilds.filter(function (g) { return !g.bot_present; });
 
-  guilds.forEach(function (g) {
-    html += '<div class="guild">';
-    html += guildIcon(g, 44);
-    html += '<div class="info">';
-    html += '<div class="name">' + esc(g.name) + '</div>';
+  function activeRow(g) {
+    var members = g.member_count
+      ? icon('users') + '<span>' + esc(g.member_count) + ' members</span>'
+      : '<span>Connected</span>';
 
-    if (g.bot_present) {
-      var sub = g.member_count ? g.member_count + ' members' : 'Nasa server ang bot';
-      html += '<div class="sub">' + esc(sub) + '</div>';
-    } else {
-      html += '<div class="sub">Wala pa ang bot dito</div>';
-    }
+    return (
+      '<a class="row-link" href="server.html?id=' + esc(g.id) + '">' +
+        guildAvatar(g) +
+        '<div class="row-body">' +
+          '<div class="row-title">' + esc(g.name) + '</div>' +
+          '<div class="row-meta">' + members +
+            (g.premium ? '<span class="badge solid">Premium</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<span style="color:var(--text-faint);width:16px;height:16px">' + icon('chevron') + '</span>' +
+      '</a>'
+    );
+  }
 
-    html += '</div>';
+  function pendingRow(g) {
+    return (
+      '<div class="row-link">' +
+        guildAvatar(g) +
+        '<div class="row-body">' +
+          '<div class="row-title">' + esc(g.name) + '</div>' +
+          '<div class="row-meta"><span>Helium is not installed</span></div>' +
+        '</div>' +
+        '<a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="' +
+          esc(botInviteUrl(g.id)) + '">Install</a>' +
+      '</div>'
+    );
+  }
 
-    if (g.bot_present) {
-      html +=
-        '<a class="btn btn-sm" href="server.html?id=' + encodeURIComponent(g.id) + '">Buksan</a>';
-    } else {
-      html +=
-        '<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="' +
-        esc(botInviteUrl(g.id)) + '">Idagdag</a>';
-    }
+  managed.innerHTML = active.length
+    ? '<div class="section-label">Connected</div>' + active.map(activeRow).join('')
+    : emptyState('Helium is not installed yet', 'Pick a server below to get started.');
 
-    html += '</div>';
-  });
-
-  list.innerHTML = html;
+  available.innerHTML = pending.length
+    ? '<div class="section-label">Available</div>' + pending.map(pendingRow).join('')
+    : '';
 })();
 </script>
 
