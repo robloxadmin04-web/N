@@ -1,0 +1,17 @@
+{
+  "name": "dashboard-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Discord bot worker for the dashboard",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "discord.js": "^14.16.3"
+  }
+}

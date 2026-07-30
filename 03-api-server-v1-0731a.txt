@@ -1,0 +1,430 @@
+// ============================================================
+// api/server.js  -  Express API for the dashboard
+// Deploy as a Render WEB SERVICE
+// Start command: node server.js
+// ============================================================
+'use strict';
+
+const express = require('express');
+const cors = require('cors');
+
+const {
+  db,
+  bad,
+  requireUser,
+  requireGuildAccess,
+  listManageableGuilds,
+  enqueueJob,
+  logAudit
+} = require('./lib');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+const SITE_WEBHOOK_SECRET = process.env.SITE_WEBHOOK_SECRET || '';
+
+app.use(express.json({ limit: '256kb' }));
+app.use(
+  cors({
+    origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN.split(','),
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-discord-token', 'x-webhook-secret']
+  })
+);
+
+// ------------------------------------------------------------
+// health
+// ------------------------------------------------------------
+app.get('/health', function (req, res) {
+  res.json({ ok: true, service: 'dashboard-api', time: new Date().toISOString() });
+});
+
+// ------------------------------------------------------------
+// GET /api/me
+// ------------------------------------------------------------
+app.get('/api/me', requireUser, function (req, res) {
+  res.json({ user: req.dashUser });
+});
+
+// ------------------------------------------------------------
+// GET /api/guilds
+// ------------------------------------------------------------
+app.get('/api/guilds', requireUser, async function (req, res) {
+  try {
+    const guilds = await listManageableGuilds(req);
+    res.json({ guilds: guilds });
+  } catch (e) {
+    return bad(res, e.status || 500, e.message);
+  }
+});
+
+// ------------------------------------------------------------
+// GET /api/guilds/:guildId/settings
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/settings', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db
+    .from('guild_settings')
+    .select('*')
+    .eq('guild_id', req.guildId)
+    .maybeSingle();
+
+  if (error) return bad(res, 500, error.message);
+
+  if (!data) {
+    const { data: created, error: insErr } = await db
+      .from('guild_settings')
+      .insert({ guild_id: req.guildId })
+      .select()
+      .single();
+    if (insErr) return bad(res, 500, insErr.message);
+    return res.json({ settings: created });
+  }
+
+  res.json({ settings: data });
+});
+
+// ------------------------------------------------------------
+// PUT /api/guilds/:guildId/settings
+// ------------------------------------------------------------
+const EDITABLE_SETTINGS = [
+  'prefix',
+  'welcome_enabled',
+  'welcome_channel_id',
+  'welcome_message',
+  'autorole_enabled',
+  'autorole_id',
+  'log_channel_id',
+  'updates_channel_id',
+  'status_channel_id',
+  'raid_protection',
+  'min_account_age_days'
+];
+
+app.put('/api/guilds/:guildId/settings', requireUser, requireGuildAccess, async function (req, res) {
+  const patch = { guild_id: req.guildId };
+
+  EDITABLE_SETTINGS.forEach(function (key) {
+    if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+      patch[key] = req.body[key];
+    }
+  });
+
+  if (Object.keys(patch).length === 1) return bad(res, 400, 'Nothing to update');
+
+  if (patch.prefix && String(patch.prefix).length > 5) {
+    return bad(res, 400, 'Prefix is too long');
+  }
+  if (patch.welcome_message && String(patch.welcome_message).length > 500) {
+    return bad(res, 400, 'Welcome message is too long');
+  }
+
+  const { data, error } = await db
+    .from('guild_settings')
+    .upsert(patch, { onConflict: 'guild_id' })
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+
+  await logAudit(req.guildId, req.dashUser.discord_id, 'settings.update', { keys: Object.keys(patch) });
+  res.json({ settings: data });
+});
+
+// ------------------------------------------------------------
+// GET /api/guilds/:guildId/channels  (from the bot cache table)
+// The bot keeps guilds fresh; channels come straight from Discord
+// through the bot token so the frontend never needs one.
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/channels', requireUser, requireGuildAccess, async function (req, res) {
+  try {
+    const { discordFetch } = require('./lib');
+    const channels = await discordFetch('/guilds/' + req.guildId + '/channels', process.env.DISCORD_BOT_TOKEN, true);
+    const text = channels
+      .filter(function (c) { return c.type === 0 || c.type === 5; })
+      .map(function (c) { return { id: c.id, name: c.name, position: c.position }; })
+      .sort(function (a, b) { return a.position - b.position; });
+    res.json({ channels: text });
+  } catch (e) {
+    return bad(res, e.status || 500, e.message);
+  }
+});
+
+// ------------------------------------------------------------
+// GET /api/guilds/:guildId/roles
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/roles', requireUser, requireGuildAccess, async function (req, res) {
+  try {
+    const { discordFetch } = require('./lib');
+    const roles = await discordFetch('/guilds/' + req.guildId + '/roles', process.env.DISCORD_BOT_TOKEN, true);
+    const clean = roles
+      .filter(function (r) { return !r.managed && r.name !== '@everyone'; })
+      .map(function (r) { return { id: r.id, name: r.name, position: r.position }; })
+      .sort(function (a, b) { return b.position - a.position; });
+    res.json({ roles: clean });
+  } catch (e) {
+    return bad(res, e.status || 500, e.message);
+  }
+});
+
+// ------------------------------------------------------------
+// PREMIUM MEMBERS
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/premium', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db
+    .from('premium_members')
+    .select('*')
+    .eq('guild_id', req.guildId)
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ members: data || [] });
+});
+
+app.post('/api/guilds/:guildId/premium', requireUser, requireGuildAccess, async function (req, res) {
+  const discordId = String(req.body.discord_id || '').trim();
+  const tier = String(req.body.tier || 'basic').trim();
+  const days = Number(req.body.days || 30);
+
+  if (!/^\d{15,25}$/.test(discordId)) return bad(res, 400, 'Invalid discord id');
+  if (!(days > 0 && days <= 3650)) return bad(res, 400, 'Days must be between 1 and 3650');
+
+  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await db
+    .from('premium_members')
+    .upsert(
+      {
+        guild_id: req.guildId,
+        discord_id: discordId,
+        tier: tier,
+        source: 'dashboard',
+        expires_at: expires,
+        role_applied: false
+      },
+      { onConflict: 'guild_id,discord_id' }
+    )
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+
+  await logAudit(req.guildId, req.dashUser.discord_id, 'premium.grant', { discordId, tier, days });
+  res.json({ member: data });
+});
+
+app.delete('/api/guilds/:guildId/premium/:discordId', requireUser, requireGuildAccess, async function (req, res) {
+  const discordId = req.params.discordId;
+
+  const { data: row } = await db
+    .from('premium_members')
+    .select('tier, role_applied')
+    .eq('guild_id', req.guildId)
+    .eq('discord_id', discordId)
+    .maybeSingle();
+
+  if (!row) return bad(res, 404, 'Not found');
+
+  const { data: mapping } = await db
+    .from('premium_roles')
+    .select('role_id')
+    .eq('guild_id', req.guildId)
+    .eq('tier', row.tier)
+    .maybeSingle();
+
+  if (mapping && row.role_applied) {
+    await enqueueJob(req.guildId, 'remove_role', { discord_id: discordId, role_id: mapping.role_id });
+  }
+
+  await db.from('premium_members').delete().eq('guild_id', req.guildId).eq('discord_id', discordId);
+  await logAudit(req.guildId, req.dashUser.discord_id, 'premium.revoke', { discordId });
+
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// PREMIUM ROLE MAPPING
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/premium-roles', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db.from('premium_roles').select('*').eq('guild_id', req.guildId);
+  if (error) return bad(res, 500, error.message);
+  res.json({ mappings: data || [] });
+});
+
+app.put('/api/guilds/:guildId/premium-roles', requireUser, requireGuildAccess, async function (req, res) {
+  const tier = String(req.body.tier || '').trim();
+  const roleId = String(req.body.role_id || '').trim();
+
+  if (!tier) return bad(res, 400, 'Missing tier');
+  if (!/^\d{15,25}$/.test(roleId)) return bad(res, 400, 'Invalid role id');
+
+  const { data, error } = await db
+    .from('premium_roles')
+    .upsert({ guild_id: req.guildId, tier: tier, role_id: roleId }, { onConflict: 'guild_id,tier' })
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ mapping: data });
+});
+
+// ------------------------------------------------------------
+// STATUS BOARD
+// ------------------------------------------------------------
+const VALID_STATES = ['working', 'patched', 'maintenance', 'unknown'];
+
+app.get('/api/guilds/:guildId/status', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db
+    .from('status_entries')
+    .select('*')
+    .eq('guild_id', req.guildId)
+    .order('position', { ascending: true });
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ entries: data || [] });
+});
+
+app.post('/api/guilds/:guildId/status', requireUser, requireGuildAccess, async function (req, res) {
+  const title = String(req.body.title || '').trim();
+  const state = String(req.body.state || 'working').trim();
+
+  if (!title) return bad(res, 400, 'Missing title');
+  if (VALID_STATES.indexOf(state) === -1) return bad(res, 400, 'Invalid state');
+
+  const { data, error } = await db
+    .from('status_entries')
+    .insert({
+      guild_id: req.guildId,
+      title: title,
+      game_name: req.body.game_name || null,
+      state: state,
+      note: req.body.note || null,
+      position: Number(req.body.position || 0)
+    })
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+
+  await enqueueJob(req.guildId, 'refresh_status', {});
+  res.json({ entry: data });
+});
+
+app.patch('/api/guilds/:guildId/status/:entryId', requireUser, requireGuildAccess, async function (req, res) {
+  const patch = {};
+  ['title', 'game_name', 'state', 'note', 'position'].forEach(function (k) {
+    if (Object.prototype.hasOwnProperty.call(req.body, k)) patch[k] = req.body[k];
+  });
+
+  if (patch.state && VALID_STATES.indexOf(patch.state) === -1) return bad(res, 400, 'Invalid state');
+  if (Object.keys(patch).length === 0) return bad(res, 400, 'Nothing to update');
+
+  const { data, error } = await db
+    .from('status_entries')
+    .update(patch)
+    .eq('id', req.params.entryId)
+    .eq('guild_id', req.guildId)
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+
+  await enqueueJob(req.guildId, 'refresh_status', {});
+  res.json({ entry: data });
+});
+
+app.delete('/api/guilds/:guildId/status/:entryId', requireUser, requireGuildAccess, async function (req, res) {
+  await db.from('status_entries').delete().eq('id', req.params.entryId).eq('guild_id', req.guildId);
+  await enqueueJob(req.guildId, 'refresh_status', {});
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// ANNOUNCE  -  push an update embed to the updates channel
+// ------------------------------------------------------------
+app.post('/api/guilds/:guildId/announce', requireUser, requireGuildAccess, async function (req, res) {
+  const title = String(req.body.title || '').trim();
+  const body = String(req.body.body || '').trim();
+
+  if (!title || !body) return bad(res, 400, 'Title and body are required');
+  if (body.length > 3000) return bad(res, 400, 'Body is too long');
+
+  await enqueueJob(req.guildId, 'send_message', {
+    kind: 'announce',
+    title: title,
+    body: body,
+    url: req.body.url || null
+  });
+
+  await logAudit(req.guildId, req.dashUser.discord_id, 'announce.queued', { title });
+  res.json({ ok: true, queued: true });
+});
+
+// ------------------------------------------------------------
+// AUDIT LOG
+// ------------------------------------------------------------
+app.get('/api/guilds/:guildId/audit', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db
+    .from('audit_log')
+    .select('*')
+    .eq('guild_id', req.guildId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ entries: data || [] });
+});
+
+// ------------------------------------------------------------
+// WEBHOOK from your own website
+// Call this when someone buys premium on your site.
+// Header: x-webhook-secret
+// Body: { guild_id, discord_id, tier, days }
+// ------------------------------------------------------------
+app.post('/api/webhooks/purchase', async function (req, res) {
+  if (!SITE_WEBHOOK_SECRET) return bad(res, 503, 'Webhook not configured');
+  if (req.headers['x-webhook-secret'] !== SITE_WEBHOOK_SECRET) return bad(res, 401, 'Bad secret');
+
+  const guildId = String(req.body.guild_id || '').trim();
+  const discordId = String(req.body.discord_id || '').trim();
+  const tier = String(req.body.tier || 'basic').trim();
+  const days = Number(req.body.days || 30);
+
+  if (!/^\d{15,25}$/.test(guildId)) return bad(res, 400, 'Invalid guild id');
+  if (!/^\d{15,25}$/.test(discordId)) return bad(res, 400, 'Invalid discord id');
+  if (!(days > 0 && days <= 3650)) return bad(res, 400, 'Invalid days');
+
+  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error } = await db.from('premium_members').upsert(
+    {
+      guild_id: guildId,
+      discord_id: discordId,
+      tier: tier,
+      source: 'website',
+      expires_at: expires,
+      role_applied: false
+    },
+    { onConflict: 'guild_id,discord_id' }
+  );
+
+  if (error) return bad(res, 500, error.message);
+
+  await logAudit(guildId, discordId, 'premium.purchase', { tier, days });
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// fallbacks
+// ------------------------------------------------------------
+app.use(function (req, res) {
+  res.status(404).json({ error: 'Not found' });
+});
+
+app.use(function (err, req, res, next) {
+  console.error('Unhandled:', err);
+  res.status(500).json({ error: 'Server error' });
+});
+
+app.listen(PORT, function () {
+  console.log('API listening on port ' + PORT);
+});
