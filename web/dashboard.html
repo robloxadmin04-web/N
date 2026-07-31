@@ -32,6 +32,11 @@
       </svg>
     </a>
 
+    <a class="iconbtn" id="ownerLink" href="owner.html" title="Access keys" style="display:none">
+      <span class="sr-only">Access keys</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3.2"/><path d="M8.3 8.3 13.5 13.5M11 11l1.5-1.5M12.4 12.4 13.9 10.9"/></svg>
+    </a>
+
     <button class="iconbtn" id="signout" type="button" title="Sign out">
       <span class="sr-only">Sign out</span>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -75,6 +80,10 @@
   var meta = session.user.user_metadata || {};
   document.getElementById('who').textContent =
     meta.full_name || meta.name || meta.user_name || '';
+
+  api('/api/owner/me').then(function (r) {
+    if (r && r.owner) document.getElementById('ownerLink').style.display = 'flex';
+  }).catch(function () {});
 
   var managed = document.getElementById('managed');
   var available = document.getElementById('available');
