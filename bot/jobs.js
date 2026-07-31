@@ -312,7 +312,20 @@ async function reconcileAutorole(client, db, guildId) {
     .eq('guild_id', guildId)
     .maybeSingle();
 
-  if (!s || !s.autorole_enabled || !s.autorole_id) return;
+  if (!s) {
+    console.log('Autorole catch up: no settings row for ' + guild.name);
+    return;
+  }
+
+  if (!s.autorole_enabled) {
+    console.log('Autorole catch up: turned OFF in ' + guild.name);
+    return;
+  }
+
+  if (!s.autorole_id) {
+    console.log('Autorole catch up: enabled but no role picked in ' + guild.name);
+    return;
+  }
 
   const role = guild.roles.cache.get(s.autorole_id);
   if (!role) {
@@ -332,7 +345,14 @@ async function reconcileAutorole(client, db, guildId) {
 
     if (holdDays > 0) {
       const ageDays = (Date.now() - member.user.createdTimestamp) / 86400000;
-      if (ageDays < holdDays) continue;
+
+      if (ageDays < holdDays) {
+        console.log(
+          'Autorole catch up: holding ' + member.user.tag +
+          ' (account is ' + ageDays.toFixed(1) + ' days old, minimum is ' + holdDays + ')'
+        );
+        continue;
+      }
     }
 
     try {
@@ -345,7 +365,9 @@ async function reconcileAutorole(client, db, guildId) {
     }
   }
 
-  if (given) console.log('Autorole catch up: ' + given + ' member(s) in ' + guild.name);
+  console.log(
+    'Autorole catch up: ' + guild.name + ' done, ' + given + ' given, role ' + role.name
+  );
 }
 
 async function reconcileGuild(client, db, guildId) {
@@ -358,6 +380,17 @@ async function reconcileGuild(client, db, guildId) {
     .eq('guild_id', guildId);
 
   if (!maps || maps.length === 0) return;
+
+  // The auto role belongs to everyone, not to a paid tier. If a
+  // mapping ever points at it, this pass would strip it from every
+  // member who has not bought that tier. Never touch it.
+  const { data: cfg } = await db
+    .from('guild_settings')
+    .select('autorole_id, autorole_enabled')
+    .eq('guild_id', guildId)
+    .maybeSingle();
+
+  const protectedRoleId = cfg && cfg.autorole_enabled ? cfg.autorole_id : null;
 
   const { data: rows } = await db
     .from('premium_members')
@@ -376,6 +409,11 @@ async function reconcileGuild(client, db, guildId) {
   await guild.members.fetch().catch(function () {});
 
   for (const map of maps) {
+    if (protectedRoleId && map.role_id === protectedRoleId) {
+      console.log('Reconcile: skipping tier ' + map.tier + ', it points at the auto role');
+      continue;
+    }
+
     const role = guild.roles.cache.get(map.role_id);
     if (!role) continue;
 
