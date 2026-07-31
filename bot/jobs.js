@@ -294,6 +294,60 @@ function startPremiumSync(client, db) {
 // database edits, failed jobs, downtime and roles handed out by
 // hand.
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// autorole catch up
+//
+// GuildMemberAdd only fires while the bot is connected. If it was
+// asleep or restarting when someone joined, that member never got
+// the role and nothing would ever notice. This pass hands the
+// autorole to anyone who is missing it.
+// ------------------------------------------------------------
+async function reconcileAutorole(client, db, guildId) {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+
+  const { data: s } = await db
+    .from('guild_settings')
+    .select('autorole_enabled, autorole_id, raid_protection, min_account_age_days')
+    .eq('guild_id', guildId)
+    .maybeSingle();
+
+  if (!s || !s.autorole_enabled || !s.autorole_id) return;
+
+  const role = guild.roles.cache.get(s.autorole_id);
+  if (!role) {
+    console.error('Autorole catch up: role ' + s.autorole_id + ' no longer exists');
+    return;
+  }
+
+  await guild.members.fetch().catch(function () {});
+
+  // Respect raid protection so held accounts stay held.
+  const holdDays = s.raid_protection ? (s.min_account_age_days || 0) : 0;
+  let given = 0;
+
+  for (const member of guild.members.cache.values()) {
+    if (member.user.bot) continue;
+    if (member.roles.cache.has(role.id)) continue;
+
+    if (holdDays > 0) {
+      const ageDays = (Date.now() - member.user.createdTimestamp) / 86400000;
+      if (ageDays < holdDays) continue;
+    }
+
+    try {
+      await member.roles.add(role);
+      given++;
+      console.log('Autorole catch up: gave ' + role.name + ' to ' + member.user.tag);
+    } catch (e) {
+      console.error('Autorole catch up failed on ' + member.user.tag + ': ' + e.message);
+      break;
+    }
+  }
+
+  if (given) console.log('Autorole catch up: ' + given + ' member(s) in ' + guild.name);
+}
+
 async function reconcileGuild(client, db, guildId) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
@@ -352,6 +406,7 @@ function startReconcile(client, db) {
     for (const guild of client.guilds.cache.values()) {
       try {
         await reconcileGuild(client, db, guild.id);
+        await reconcileAutorole(client, db, guild.id);
       } catch (e) {
         console.error('Reconcile failed for ' + guild.id + ': ' + e.message);
       }
