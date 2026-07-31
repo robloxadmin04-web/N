@@ -417,7 +417,6 @@ app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async 
   await db.from('status_entries').delete().eq('guild_id', gid);
   await db.from('bot_jobs').delete().eq('guild_id', gid).neq('status', 'pending');
   await db.from('audit_log').delete().eq('guild_id', gid);
-  await db.from('guild_access').delete().eq('guild_id', gid);
 
   // 3. settings back to factory defaults
   await db.from('guild_settings').delete().eq('guild_id', gid);
