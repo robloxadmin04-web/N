@@ -28,6 +28,9 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false }
 });
 
+// How long to wait before handing a new member the auto role.
+const AUTOROLE_DELAY_MS = 10000;
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -151,10 +154,19 @@ client.on(Events.GuildMemberAdd, async function (member) {
       }
     }
 
-    // autorole
+    // autorole, on a short delay
+    // setTimeout instead of await so the welcome message below
+    // still posts the moment they join
     if (s.autorole_enabled && s.autorole_id) {
       const role = member.guild.roles.cache.get(s.autorole_id);
-      if (role) await member.roles.add(role).catch(function () {});
+
+      if (role) {
+        setTimeout(function () {
+          member.roles.add(role).catch(function (e) {
+            console.error('Autorole failed for ' + member.user.tag + ': ' + e.message);
+          });
+        }, AUTOROLE_DELAY_MS);
+      }
     }
 
     // restore premium role if still paid up
