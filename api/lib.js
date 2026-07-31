@@ -246,11 +246,30 @@ async function logAudit(guildId, actorDiscordId, action, detail) {
   });
 }
 
+// ------------------------------------------------------------
+// requireOwner - only ids in the owners table pass
+// ------------------------------------------------------------
+async function requireOwner(req, res, next) {
+  try {
+    const { data } = await db
+      .from('owners')
+      .select('discord_id')
+      .eq('discord_id', req.dashUser.discord_id)
+      .maybeSingle();
+
+    if (!data) return bad(res, 403, 'Owners only');
+    next();
+  } catch (e) {
+    return bad(res, 500, 'Owner check failed');
+  }
+}
+
 module.exports = {
   db,
   bad,
   discordFetch,
   requireUser,
+  requireOwner,
   requireGuildAccess,
   listManageableGuilds,
   enqueueJob,
