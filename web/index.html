@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Manage your Discord server settings, premium members and status board from one place.">
 <title>Sign in - Helium</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -21,18 +20,27 @@
     </div>
 
     <h1>Helium</h1>
-    <p class="auth-sub">Server management for Discord communities. Settings, roles and updates in one place.</p>
+    <p class="auth-sub">Server management for Discord communities. Enter your access key to continue.</p>
 
-    <button id="signin" class="btn btn-primary btn-block btn-lg" type="button">
-      <span id="signinIcon"></span>
-      <span id="signinLabel">Continue with Discord</span>
-    </button>
+    <div id="stepKey">
+      <div class="field">
+        <label class="lbl" for="accessKey">Access key</label>
+        <input type="text" id="accessKey" placeholder="KEY-XXXXXXXX-XXXXXXXX" autocomplete="off" spellcheck="false">
+      </div>
+      <button id="keyBtn" class="btn btn-primary btn-block btn-lg" type="button">Continue</button>
+    </div>
 
-    <ul class="auth-perms" id="perms"></ul>
+    <div id="stepDiscord" style="display:none">
+      <button id="signin" class="btn btn-primary btn-block btn-lg" type="button">
+        <span id="signinIcon"></span>
+        <span id="signinLabel">Continue with Discord</span>
+      </button>
+      <ul class="auth-perms" id="perms"></ul>
+    </div>
 
   </div>
 
-  <p class="auth-foot">You will be redirected to Discord to authorize access.</p>
+  <p class="auth-foot">Access is limited. If your key does not work, contact the owner.</p>
 </main>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -42,27 +50,53 @@
 <script src="app.js"></script>
 <script>
 (async function () {
-  document.getElementById('signinIcon').innerHTML = icon('discord');
+  var stepKey = document.getElementById('stepKey');
+  var stepDiscord = document.getElementById('stepDiscord');
+  var keyInput = document.getElementById('accessKey');
+  var keyBtn = document.getElementById('keyBtn');
+  var signinBtn = document.getElementById('signin');
+  var signinLabel = document.getElementById('signinLabel');
 
-  document.getElementById('perms').innerHTML =
-    ['Reads the list of servers you can manage',
-     'Never reads your messages or direct messages',
-     'You can revoke access from Discord at any time']
-      .map(function (text) {
-        return '<li>' + icon('check') + '<span>' + esc(text) + '</span></li>';
-      }).join('');
-
-  var btn = document.getElementById('signin');
-  var label = document.getElementById('signinLabel');
-
-  btn.addEventListener('click', function () {
-    btn.disabled = true;
-    label.textContent = 'Redirecting';
-    signIn();
-  });
+  function showDiscordStep() {
+    stepKey.style.display = 'none';
+    stepDiscord.style.display = 'block';
+    document.getElementById('signinIcon').innerHTML = icon('discord');
+    document.getElementById('perms').innerHTML =
+      ['Reads the list of servers you can manage',
+       'Never reads your messages or direct messages',
+       'You can revoke access from Discord at any time']
+        .map(function (t) { return '<li>' + icon('check') + '<span>' + esc(t) + '</span></li>'; })
+        .join('');
+  }
 
   var session = await getSession();
-  if (session) window.location.replace('dashboard.html');
+  if (session) { window.location.replace('dashboard.html'); return; }
+
+  if (hasPassedGate()) showDiscordStep();
+
+  async function submitKey() {
+    var key = keyInput.value.trim();
+    if (!key) { notify('Enter your access key.', 'error'); return; }
+    keyBtn.disabled = true;
+    keyBtn.textContent = 'Checking';
+    try {
+      await checkAccessKey(key);
+      showDiscordStep();
+    } catch (e) {
+      notify(e.message, 'error');
+      keyBtn.disabled = false;
+      keyBtn.textContent = 'Continue';
+    }
+  }
+
+  keyBtn.addEventListener('click', submitKey);
+  keyInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitKey(); });
+
+  signinBtn.addEventListener('click', function () {
+    signinBtn.disabled = true;
+    signinLabel.textContent = 'Redirecting';
+    signIn();
+  });
 })();
 </script>
 
