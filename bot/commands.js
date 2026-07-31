@@ -1,23 +1,50 @@
 // ============================================================
 // bot/commands.js
-// Slash commands: /redeem and /premium
-// One person can hold several tiers at the same time.
+// Slash commands, a claim panel with buttons, and the modal
+// that lets buyers redeem without typing anything.
 // ============================================================
 'use strict';
 
 const crypto = require('crypto');
-const { EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
+
+const {
+  EmbedBuilder,
+  PermissionsBitField,
+  MessageFlags,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
+} = require('discord.js');
 
 // No O, 0, I or 1 so codes cannot be misread.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-// Option types: 1 subcommand, 3 string, 4 integer, 6 user
+const ID = {
+  redeem: 'helium:redeem',
+  status: 'helium:status',
+  modal: 'helium:redeem_modal',
+  field: 'code'
+};
+
+// Option types: 1 subcommand, 3 string, 4 integer, 6 user, 7 channel
 const COMMANDS = [
   {
     name: 'redeem',
     description: 'Redeem a premium code',
     options: [
       { name: 'code', description: 'The code you were given', type: 3, required: true }
+    ]
+  },
+  {
+    name: 'panel',
+    description: 'Post a claim panel with buttons (staff only)',
+    options: [
+      { name: 'channel', description: 'Where to post it, defaults to here', type: 7, required: false },
+      { name: 'title', description: 'Heading shown on the panel', type: 3, required: false },
+      { name: 'message', description: 'Text shown under the heading', type: 3, required: false }
     ]
   },
   {
@@ -112,8 +139,8 @@ function fmt(iso) {
 }
 
 // ------------------------------------------------------------
-// Roles are applied straight away here, not through the job
-// queue, so a buyer sees the result while the command runs.
+// Roles are applied straight away so a buyer sees the result
+// while the interaction is still open.
 // ------------------------------------------------------------
 async function applyRole(db, guild, discordId, tier) {
   const { data: map } = await db
@@ -188,10 +215,10 @@ async function upsertMember(db, guildId, discordId, tier, days, source) {
 }
 
 // ------------------------------------------------------------
-// /redeem
+// redeem core, shared by the command and the panel button
 // ------------------------------------------------------------
-async function handleRedeem(interaction, db) {
-  const code = (interaction.options.getString('code') || '').trim().toUpperCase();
+async function redeemCode(interaction, db, rawCode, source) {
+  const code = (rawCode || '').trim().toUpperCase();
 
   const { data: row } = await db
     .from('premium_codes')
@@ -229,17 +256,17 @@ async function handleRedeem(interaction, db) {
 
   await db.from('premium_codes').update({ uses: row.uses + 1 }).eq('code', code);
 
-  const result = await upsertMember(db, interaction.guildId, interaction.user.id, row.tier, row.days, 'code');
+  const result = await upsertMember(db, interaction.guildId, interaction.user.id, row.tier, row.days, source || 'code');
   const applied = await applyRole(db, interaction.guild, interaction.user.id, row.tier);
 
   await db.from('audit_log').insert({
     guild_id: interaction.guildId,
     actor_discord_id: interaction.user.id,
     action: 'premium.redeem',
-    detail: { code: code, tier: row.tier, days: row.days }
+    detail: { code: code, tier: row.tier, days: row.days, source: source || 'code' }
   });
 
-  return reply(interaction, panel(applied.ok ? 'Premium activated' : 'Code accepted', [
+  return reply(interaction, panel(applied.ok ? 'Access granted' : 'Code accepted', [
     result.extended
       ? 'Added ' + row.days + ' days to your ' + row.tier + ' access.'
       : 'You now have ' + row.days + ' days of ' + row.tier + '.',
@@ -252,9 +279,9 @@ async function handleRedeem(interaction, db) {
 }
 
 // ------------------------------------------------------------
-// /premium status
+// status core
 // ------------------------------------------------------------
-async function handleStatus(interaction, db) {
+async function showStatus(interaction, db) {
   const { data: rows } = await db
     .from('premium_members')
     .select('tier, expires_at')
@@ -263,8 +290,9 @@ async function handleStatus(interaction, db) {
     .order('tier', { ascending: true });
 
   if (!rows || rows.length === 0) {
-    return reply(interaction, panel('No premium', [
-      'You do not have any premium access in this server.'
+    return reply(interaction, panel('No access yet', [
+      'You do not have any premium access in this server.',
+      'Redeem a code to activate one.'
     ]));
   }
 
@@ -280,6 +308,69 @@ async function handleStatus(interaction, db) {
   });
 
   return reply(interaction, panel('Your access', lines));
+}
+
+// ------------------------------------------------------------
+// /panel
+// ------------------------------------------------------------
+async function handlePanel(interaction, db) {
+  const target = interaction.options.getChannel('channel') || interaction.channel;
+  const title = interaction.options.getString('title') || 'Claim your access';
+  const message = interaction.options.getString('message') ||
+    'Bought something? Press Redeem a code and paste the code you were given. Your role is applied straight away.';
+
+  if (!target || typeof target.send !== 'function') {
+    return reply(interaction, panel('Cannot post there', ['Pick a normal text channel.']));
+  }
+
+  const { data: maps } = await db
+    .from('premium_roles')
+    .select('tier')
+    .eq('guild_id', interaction.guildId);
+
+  const tiers = (maps || []).map(function (m) { return m.tier; });
+
+  const board = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(message)
+    .setColor(0xffffff);
+
+  if (tiers.length) {
+    board.addFields({ name: 'Available', value: tiers.join('\n') });
+  }
+
+  board.setFooter({ text: 'Only you can see the replies from these buttons' });
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(ID.redeem)
+      .setLabel('Redeem a code')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(ID.status)
+      .setLabel('My access')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  try {
+    await target.send({ embeds: [board], components: [buttons] });
+  } catch (e) {
+    return reply(interaction, panel('Could not post the panel', [
+      'I need View Channel, Send Messages and Embed Links in that channel.'
+    ]));
+  }
+
+  await db.from('audit_log').insert({
+    guild_id: interaction.guildId,
+    actor_discord_id: interaction.user.id,
+    action: 'panel.post',
+    detail: { channel_id: target.id }
+  });
+
+  return reply(interaction, panel('Panel posted', [
+    'It stays working forever, even after the bot restarts.',
+    'Pin it so buyers can always find it.'
+  ]));
 }
 
 // ------------------------------------------------------------
@@ -419,7 +510,7 @@ async function handleCode(interaction, db) {
     'Grants ' + days + ' days of ' + tier + '.',
     uses === 1 ? 'Single use.' : 'Can be used by ' + uses + ' different people.',
     '',
-    'Send this to the buyer. They run /redeem and get the role instantly.'
+    'Send this to the buyer. They paste it into the panel and the role lands instantly.'
   ]));
 }
 
@@ -452,42 +543,96 @@ async function handleCodes(interaction, db) {
 }
 
 // ------------------------------------------------------------
+// panel buttons
+// ------------------------------------------------------------
+async function handleButton(interaction, db) {
+  if (interaction.customId === ID.redeem) {
+    const field = new TextInputBuilder()
+      .setCustomId(ID.field)
+      .setLabel('Your code')
+      .setPlaceholder('XXXX-XXXX-XXXX')
+      .setStyle(TextInputStyle.Short)
+      .setMinLength(6)
+      .setMaxLength(32)
+      .setRequired(true);
+
+    const form = new ModalBuilder()
+      .setCustomId(ID.modal)
+      .setTitle('Redeem a code')
+      .addComponents(new ActionRowBuilder().addComponents(field));
+
+    // A modal has to be the first response, so no defer here.
+    return interaction.showModal(form);
+  }
+
+  if (interaction.customId === ID.status) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    return showStatus(interaction, db);
+  }
+}
+
+async function handleModal(interaction, db) {
+  if (interaction.customId !== ID.modal) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const code = interaction.fields.getTextInputValue(ID.field);
+
+  return redeemCode(interaction, db, code, 'panel');
+}
+
+// ------------------------------------------------------------
 // router
 // ------------------------------------------------------------
 async function handleInteraction(interaction, db) {
-  if (!interaction.isChatInputCommand()) return;
-
   if (!interaction.guildId) {
-    return interaction.reply({
-      content: 'These commands only work inside a server.',
-      flags: MessageFlags.Ephemeral
-    });
-  }
-
-  const name = interaction.commandName;
-  const sub = name === 'premium' ? interaction.options.getSubcommand() : null;
-  const staffOnly = ['grant', 'revoke', 'code', 'codes'];
-
-  if (sub && staffOnly.includes(sub) && !isStaff(interaction)) {
-    return interaction.reply({
-      content: 'You need the Manage Server permission to use this.',
-      flags: MessageFlags.Ephemeral
-    });
+    if (interaction.isRepliable()) {
+      return interaction.reply({
+        content: 'This only works inside a server.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+    return;
   }
 
   try {
+    if (interaction.isButton()) return await handleButton(interaction, db);
+    if (interaction.isModalSubmit()) return await handleModal(interaction, db);
+    if (!interaction.isChatInputCommand()) return;
+
+    const name = interaction.commandName;
+    const sub = name === 'premium' ? interaction.options.getSubcommand() : null;
+    const staffOnly = ['grant', 'revoke', 'code', 'codes'];
+    const needsStaff = name === 'panel' || (sub && staffOnly.includes(sub));
+
+    if (needsStaff && !isStaff(interaction)) {
+      return interaction.reply({
+        content: 'You need the Manage Server permission to use this.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    if (name === 'redeem') return await handleRedeem(interaction, db);
-    if (sub === 'status') return await handleStatus(interaction, db);
+    if (name === 'redeem') {
+      return await redeemCode(interaction, db, interaction.options.getString('code'), 'command');
+    }
+    if (name === 'panel') return await handlePanel(interaction, db);
+    if (sub === 'status') return await showStatus(interaction, db);
     if (sub === 'grant') return await handleGrant(interaction, db);
     if (sub === 'revoke') return await handleRevoke(interaction, db);
     if (sub === 'code') return await handleCode(interaction, db);
     if (sub === 'codes') return await handleCodes(interaction, db);
   } catch (e) {
     console.error('Interaction failed: ' + e.message);
+
     const embed = panel('Something went wrong', ['Try again in a moment.']);
-    if (interaction.deferred) return interaction.editReply({ embeds: [embed] }).catch(() => {});
+
+    if (interaction.deferred || interaction.replied) {
+      return interaction.editReply({ embeds: [embed] }).catch(() => {});
+    }
+    if (interaction.isRepliable()) {
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
   }
 }
 
