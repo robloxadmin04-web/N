@@ -26,7 +26,8 @@ const ID = {
   redeem: 'helium:redeem',
   status: 'helium:status',
   modal: 'helium:redeem_modal',
-  field: 'code'
+  field: 'code',
+  getkey: 'helium:getkey'
 };
 
 // Option types: 1 subcommand, 3 string, 4 integer, 6 user, 7 channel
@@ -43,6 +44,16 @@ const COMMANDS = [
     description: 'Post a claim panel with buttons (staff only)',
     options: [
       { name: 'channel', description: 'Where to post it, defaults to here', type: 7, required: false },
+      { name: 'title', description: 'Heading shown on the panel', type: 3, required: false },
+      { name: 'message', description: 'Text shown under the heading', type: 3, required: false }
+    ]
+  },
+  {
+    name: 'keypanel',
+    description: 'Post a dashboard key panel (staff only)',
+    options: [
+      { name: 'channel', description: 'Where to post it, defaults to here', type: 7, required: false },
+      { name: 'role', description: 'Only members with this role can claim', type: 8, required: false },
       { name: 'title', description: 'Heading shown on the panel', type: 3, required: false },
       { name: 'message', description: 'Text shown under the heading', type: 3, required: false }
     ]
@@ -98,6 +109,18 @@ const COMMANDS = [
 // ------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------
+
+function makeAccessKey() {
+  const bytes = crypto.randomBytes(16);
+  let out = 'KEY-';
+
+  for (let i = 0; i < 16; i++) {
+    if (i === 8) out += '-';
+    out += ALPHABET[bytes[i] % ALPHABET.length];
+  }
+
+  return out;
+}
 
 function makeCode() {
   const bytes = crypto.randomBytes(12);
@@ -543,6 +566,126 @@ async function handleCodes(interaction, db) {
 }
 
 // ------------------------------------------------------------
+// /keypanel  -  self service dashboard keys
+// ------------------------------------------------------------
+async function handleKeyPanel(interaction, db) {
+  const target = interaction.options.getChannel('channel') || interaction.channel;
+  const role = interaction.options.getRole('role');
+  const title = interaction.options.getString('title') || 'Dashboard access';
+  const message = interaction.options.getString('message') ||
+    'Press the button below to get your own dashboard key. Paste it on the sign in page, then continue with Discord.';
+
+  if (!target || typeof target.send !== 'function') {
+    return reply(interaction, panel('Cannot post there', ['Pick a normal text channel.']));
+  }
+
+  const board = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(message)
+    .setColor(0xffffff)
+    .setFooter({ text: 'Your key is shown only to you' });
+
+  if (role) board.addFields({ name: 'Requires', value: role.name });
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(role ? ID.getkey + ':' + role.id : ID.getkey)
+      .setLabel('Get my dashboard key')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  try {
+    await target.send({ embeds: [board], components: [buttons] });
+  } catch (e) {
+    return reply(interaction, panel('Could not post the panel', [
+      'I need View Channel, Send Messages and Embed Links in that channel.'
+    ]));
+  }
+
+  await db.from('audit_log').insert({
+    guild_id: interaction.guildId,
+    actor_discord_id: interaction.user.id,
+    action: 'keypanel.post',
+    detail: { channel_id: target.id, role_id: role ? role.id : null }
+  });
+
+  return reply(interaction, panel('Panel posted', [
+    'Each member can claim one key. Pressing again returns the same key.',
+    role
+      ? 'Only members with ' + role.name + ' can claim.'
+      : 'Anyone who can see that channel can claim.'
+  ]));
+}
+
+async function handleGetKey(interaction, db) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const requiredRole = interaction.customId.split(':')[2] || null;
+
+  if (requiredRole) {
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+
+    if (!member || !member.roles.cache.has(requiredRole)) {
+      return reply(interaction, panel('Not eligible yet', [
+        'You need the required role before you can claim a dashboard key.',
+        'Redeem your purchase first, then press the button again.'
+      ]));
+    }
+  }
+
+  const { data: existing } = await db
+    .from('access_keys')
+    .select('key, disabled')
+    .eq('guild_id', interaction.guildId)
+    .eq('claimed_by', interaction.user.id)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.disabled) {
+      return reply(interaction, panel('Key disabled', [
+        'Your key was turned off by staff. Open a ticket if this is a mistake.'
+      ]));
+    }
+
+    return reply(interaction, panel('Your dashboard key', [
+      '`' + existing.key + '`',
+      '',
+      'This is the same key you claimed before.',
+      'Paste it on the dashboard sign in page.'
+    ]));
+  }
+
+  const key = makeAccessKey();
+
+  const { error } = await db.from('access_keys').insert({
+    key: key,
+    label: interaction.user.tag,
+    guild_id: interaction.guildId,
+    claimed_by: interaction.user.id,
+    claimed_at: new Date().toISOString(),
+    created_by: 'panel'
+  });
+
+  if (error) {
+    return reply(interaction, panel('Could not create your key', ['Try again in a moment.']));
+  }
+
+  await db.from('audit_log').insert({
+    guild_id: interaction.guildId,
+    actor_discord_id: interaction.user.id,
+    action: 'accesskey.claim',
+    detail: {}
+  });
+
+  return reply(interaction, panel('Your dashboard key', [
+    '`' + key + '`',
+    '',
+    'Paste this on the dashboard sign in page, then continue with Discord.',
+    'Keep it private. It is tied to your account.'
+  ]));
+}
+
+// ------------------------------------------------------------
 // panel buttons
 // ------------------------------------------------------------
 async function handleButton(interaction, db) {
@@ -568,6 +711,10 @@ async function handleButton(interaction, db) {
   if (interaction.customId === ID.status) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     return showStatus(interaction, db);
+  }
+
+  if (interaction.customId.split(':').slice(0, 2).join(':') === ID.getkey) {
+    return handleGetKey(interaction, db);
   }
 }
 
@@ -602,7 +749,7 @@ async function handleInteraction(interaction, db) {
     const name = interaction.commandName;
     const sub = name === 'premium' ? interaction.options.getSubcommand() : null;
     const staffOnly = ['grant', 'revoke', 'code', 'codes'];
-    const needsStaff = name === 'panel' || (sub && staffOnly.includes(sub));
+    const needsStaff = name === 'panel' || name === 'keypanel' || (sub && staffOnly.includes(sub));
 
     if (needsStaff && !isStaff(interaction)) {
       return interaction.reply({
@@ -617,6 +764,7 @@ async function handleInteraction(interaction, db) {
       return await redeemCode(interaction, db, interaction.options.getString('code'), 'command');
     }
     if (name === 'panel') return await handlePanel(interaction, db);
+    if (name === 'keypanel') return await handleKeyPanel(interaction, db);
     if (sub === 'status') return await showStatus(interaction, db);
     if (sub === 'grant') return await handleGrant(interaction, db);
     if (sub === 'revoke') return await handleRevoke(interaction, db);
