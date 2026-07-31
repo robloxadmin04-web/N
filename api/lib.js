@@ -106,7 +106,7 @@ async function fetchUserGuilds(token) {
 // Reads the Supabase access token, validates it, upserts the
 // user row, and puts the result on req.dashUser
 // ------------------------------------------------------------
-async function requireUser(req, res, next) {
+async function authOnly(req, res, next) {
   try {
     const token = bearer(req);
     if (!token) return bad(res, 401, 'Missing bearer token');
@@ -247,6 +247,43 @@ async function logAudit(guildId, actorDiscordId, action, detail) {
 }
 
 // ------------------------------------------------------------
+// requireUser - signed in AND holding a linked access key.
+//
+// A key belongs to one Discord account. Binding happens on the
+// first sign in that uses it. Enforcing it here means the rule
+// holds no matter what the browser does.
+//
+// Owners are exempt so they can never lock themselves out.
+// ------------------------------------------------------------
+function requireUser(req, res, next) {
+  authOnly(req, res, async function () {
+    try {
+      const me = req.dashUser.discord_id;
+
+      const results = await Promise.all([
+        db.from('access_keys').select('key').eq('claimed_by', me).eq('disabled', false).limit(1),
+        db.from('owners').select('discord_id').eq('discord_id', me).maybeSingle()
+      ]);
+
+      req.isOwner = Boolean(results[1].data);
+      const hasKey = Boolean(results[0].data && results[0].data.length);
+
+      if (!hasKey && !req.isOwner) {
+        return res.status(403).json({
+          error: 'No access key is linked to this Discord account.',
+          code: 'no_access_key'
+        });
+      }
+
+      next();
+    } catch (e) {
+      console.error('access gate failed:', e.message);
+      return bad(res, 500, 'Access check failed');
+    }
+  });
+}
+
+// ------------------------------------------------------------
 // requireOwner - only ids in the owners table pass
 // ------------------------------------------------------------
 async function requireOwner(req, res, next) {
@@ -268,6 +305,7 @@ module.exports = {
   db,
   bad,
   discordFetch,
+  authOnly,
   requireUser,
   requireOwner,
   requireGuildAccess,
