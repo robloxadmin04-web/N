@@ -63,6 +63,33 @@ function icon(name) {
 }
 
 // ------------------------------------------------------------
+// Access key gate. A valid key must be entered before sign in.
+// ------------------------------------------------------------
+var ACCESS_FLAG = 'helium_access_ok';
+
+async function checkAccessKey(key) {
+  var res = await fetch(CONFIG.API_BASE_URL + '/api/access/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: key })
+  });
+
+  var payload = null;
+  try { payload = await res.json(); } catch (e) {}
+
+  if (!res.ok) {
+    throw new Error((payload && payload.error) || 'That access key is not valid');
+  }
+
+  sessionStorage.setItem(ACCESS_FLAG, '1');
+  return true;
+}
+
+function hasPassedGate() {
+  return sessionStorage.getItem(ACCESS_FLAG) === '1';
+}
+
+// ------------------------------------------------------------
 // Auth
 // ------------------------------------------------------------
 
