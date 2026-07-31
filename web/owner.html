@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Access keys - Helium</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="iconbtn" href="dashboard.html" title="Back to dashboard">
+      <span class="sr-only">Back to dashboard</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 3.5 5.5 8l4.5 4.5"/>
+      </svg>
+    </a>
+    <div class="title">
+      <h1>Access keys</h1>
+      <div class="meta">Who is allowed into the dashboard</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <div id="guard"><div class="skeleton"></div></div>
+
+  <div id="owner" style="display:none">
+
+    <div class="card">
+      <h2>Generate a key</h2>
+      <p class="desc">Give this key to someone you want to let into the dashboard. Anyone with a working key can sign in and manage the servers they own.</p>
+      <div class="field">
+        <label class="lbl" for="label">Label</label>
+        <input type="text" id="label" placeholder="Who is this for, optional" maxlength="60">
+      </div>
+      <button class="btn btn-primary btn-block" id="generate" type="button">Generate key</button>
+    </div>
+
+    <div class="card">
+      <h2>Keys</h2>
+      <p class="desc">Disable a key to block it without deleting the record. Delete removes it for good.</p>
+      <div id="keyList"></div>
+    </div>
+
+  </div>
+
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+(async function () {
+  var session = await requireAuth();
+  if (!session) return;
+
+  var guard = document.getElementById('guard');
+  var ownerBox = document.getElementById('owner');
+
+  try {
+    var me = await api('/api/owner/me');
+    if (!me.owner) {
+      guard.innerHTML = emptyState('Owners only', 'This page is limited to the dashboard owner.');
+      return;
+    }
+  } catch (e) {
+    guard.innerHTML = emptyState('Could not verify access', e.message);
+    return;
+  }
+
+  guard.style.display = 'none';
+  ownerBox.style.display = 'block';
+
+  var TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1.5M12.5 4.5 12 13a.5.5 0 0 1-.5.5h-7A.5.5 0 0 1 4 13l-.5-8.5"/></svg>';
+
+  function keyRow(k) {
+    var used = k.uses ? k.uses + ' use' + (k.uses === 1 ? '' : 's') : 'never used';
+    var state = k.disabled ? '<span class="badge hollow">disabled</span>' : '<span class="badge half">active</span>';
+    return '<div class="item"><div class="item-body">' +
+      '<div class="item-title mono">' + esc(k.key) + '</div>' +
+      '<div class="item-sub">' + state +
+        (k.label ? '<span>' + esc(k.label) + '</span>' : '') +
+        '<span>' + esc(used) + '</span></div></div>' +
+      '<button class="btn btn-quiet btn-sm" data-toggle="' + esc(k.key) + '" data-disabled="' + (k.disabled ? '1' : '0') + '" type="button">' +
+        (k.disabled ? 'Enable' : 'Disable') + '</button>' +
+      '<button class="iconbtn" data-del="' + esc(k.key) + '" type="button" title="Delete">' +
+        '<span class="sr-only">Delete key</span>' + TRASH + '</button></div>';
+  }
+
+  async function load() {
+    var box = document.getElementById('keyList');
+    try {
+      var out = await api('/api/owner/keys');
+      var keys = out.keys || [];
+      if (!keys.length) { box.innerHTML = emptyState('No keys yet', 'Generate one above to let someone in.'); return; }
+      box.innerHTML = keys.map(keyRow).join('');
+
+      box.querySelectorAll('[data-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          try {
+            await api('/api/owner/keys/' + encodeURIComponent(btn.dataset.toggle), { method: 'PATCH', body: { disabled: btn.dataset.disabled === '0' } });
+            load();
+          } catch (e) { notify(e.message, 'error'); }
+        });
+      });
+
+      box.querySelectorAll('[data-del]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          if (!confirm('Delete this key? Anyone using it loses access.')) return;
+          try {
+            await api('/api/owner/keys/' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' });
+            notify('Key deleted.');
+            load();
+          } catch (e) { notify(e.message, 'error'); }
+        });
+      });
+    } catch (e) {
+      box.innerHTML = emptyState('Could not load keys', e.message);
+    }
+  }
+
+  document.getElementById('generate').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true;
+    try {
+      var out = await api('/api/owner/keys', { method: 'POST', body: { label: document.getElementById('label').value.trim() || null } });
+      document.getElementById('label').value = '';
+      notify('Key created: ' + out.key);
+      load();
+    } catch (e) { notify(e.message, 'error'); }
+    btn.disabled = false;
+  });
+
+  load();
+})();
+</script>
+
+</body>
+</html>
