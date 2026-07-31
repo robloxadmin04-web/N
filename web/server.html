@@ -330,14 +330,18 @@
   var settings, channels, roles;
 
   try {
+    // The first call also warms up the permission check. Firing all
+    // three at once meant three identical questions to Discord in the
+    // same instant, which it rate limits.
+    settings = (await api(BASE + '/settings')).settings;
+
     var loaded = await Promise.all([
-      api(BASE + '/settings'),
       api(BASE + '/channels'),
       api(BASE + '/roles')
     ]);
-    settings = loaded[0].settings;
-    channels = loaded[1].channels || [];
-    roles = loaded[2].roles || [];
+
+    channels = loaded[0].channels || [];
+    roles = loaded[1].roles || [];
   } catch (e) {
     document.getElementById('guildMeta').textContent = 'Failed to load';
     notify(e.message, 'error');
