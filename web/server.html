@@ -154,6 +154,15 @@
     </div>
 
     <button class="btn btn-primary btn-block btn-lg" id="saveSettings" type="button">Save changes</button>
+
+    <div class="divider"></div>
+
+    <div class="card" style="border-color:var(--border-hi)">
+      <h2>Reset this server</h2>
+      <p class="desc">Erases every Helium record for this server: settings, premium members, tier mappings, redeem codes and status entries. Premium roles that members currently hold are taken back as well.</p>
+      <p class="desc">Helium stays installed and your other servers are untouched. Nothing about the Discord server itself is deleted.</p>
+      <button class="btn btn-outline btn-block" id="resetServer" type="button">Reset this server</button>
+    </div>
   </section>
 
   <!-- ================= PREMIUM ================= -->
@@ -421,7 +430,39 @@
     try {
       await api(BASE + '/premium-roles', { method: 'PUT', body: { tier: tier, role_id: roleId } });
       notify('Mapping saved.');
-      loadMappings();
+      // ---------- reset ----------
+  var resetBtn = document.getElementById('resetServer');
+  var resetArmed = false;
+  var resetTimer = null;
+
+  function disarmReset() {
+    resetArmed = false;
+    resetBtn.textContent = 'Reset this server';
+  }
+
+  resetBtn.addEventListener('click', async function () {
+    if (!resetArmed) {
+      resetArmed = true;
+      resetBtn.textContent = 'Press again to erase everything';
+      resetTimer = setTimeout(disarmReset, 6000);
+      return;
+    }
+
+    clearTimeout(resetTimer);
+    resetBtn.disabled = true;
+    resetBtn.textContent = 'Erasing';
+
+    try {
+      await api(BASE + '/reset', { method: 'DELETE' });
+      window.location.replace('dashboard.html');
+    } catch (e) {
+      notify(e.message, 'error');
+      resetBtn.disabled = false;
+      disarmReset();
+    }
+  });
+
+  loadMappings();
     } catch (e) {
       notify(e.message, 'error');
     }
