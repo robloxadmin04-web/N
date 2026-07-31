@@ -13,7 +13,7 @@ const {
 } = require('discord.js');
 
 const { createClient } = require('@supabase/supabase-js');
-const { startJobLoop, startPremiumSync, renderStatusBoard } = require('./jobs');
+const { startJobLoop, startPremiumSync, startReconcile, renderStatusBoard } = require('./jobs');
 const { handleInteraction, registerCommands } = require('./commands');
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -101,6 +101,7 @@ client.once(Events.ClientReady, async function (c) {
 
   startJobLoop(client, db);
   startPremiumSync(client, db);
+  startReconcile(client, db);
 });
 
 // ------------------------------------------------------------
