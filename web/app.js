@@ -66,6 +66,8 @@ function icon(name) {
 // Access key gate. A valid key must be entered before sign in.
 // ------------------------------------------------------------
 var ACCESS_FLAG = 'helium_access_ok';
+var ACCESS_KEY_STORE = 'helium_access_key';
+var BOUND_FLAG = 'helium_bound_user';
 
 async function checkAccessKey(key) {
   var res = await fetch(CONFIG.API_BASE_URL + '/api/access/check', {
@@ -82,7 +84,30 @@ async function checkAccessKey(key) {
   }
 
   sessionStorage.setItem(ACCESS_FLAG, '1');
+  sessionStorage.setItem(ACCESS_KEY_STORE, key);
   return true;
+}
+
+// Links the key to this Discord account. The server refuses if
+// the key already belongs to someone else.
+async function claimAccess() {
+  var session = await getSession();
+  if (!session) throw new Error('Session expired');
+
+  var res = await fetch(CONFIG.API_BASE_URL + '/api/access/claim', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + session.access_token
+    },
+    body: JSON.stringify({ key: sessionStorage.getItem(ACCESS_KEY_STORE) || '' })
+  });
+
+  var payload = null;
+  try { payload = await res.json(); } catch (e) {}
+
+  if (!res.ok) throw new Error((payload && payload.error) || 'Access denied');
+  return payload;
 }
 
 function hasPassedGate() {
@@ -109,6 +134,9 @@ async function signIn() {
 async function signOut() {
   await sb.auth.signOut();
   localStorage.removeItem(DISCORD_TOKEN_KEY);
+  localStorage.removeItem(BOUND_FLAG);
+  sessionStorage.removeItem(ACCESS_FLAG);
+  sessionStorage.removeItem(ACCESS_KEY_STORE);
   window.location.href = 'index.html';
 }
 
@@ -123,6 +151,22 @@ async function requireAuth() {
     window.location.replace('index.html');
     return null;
   }
+
+  // Bind the key to this account once per sign in.
+  if (localStorage.getItem(BOUND_FLAG) !== session.user.id) {
+    try {
+      await claimAccess();
+      localStorage.setItem(BOUND_FLAG, session.user.id);
+    } catch (e) {
+      sessionStorage.removeItem(ACCESS_FLAG);
+      sessionStorage.removeItem(ACCESS_KEY_STORE);
+      localStorage.removeItem(BOUND_FLAG);
+      alert(e.message);
+      await signOut();
+      return null;
+    }
+  }
+
   return session;
 }
 
