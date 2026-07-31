@@ -430,39 +430,7 @@
     try {
       await api(BASE + '/premium-roles', { method: 'PUT', body: { tier: tier, role_id: roleId } });
       notify('Mapping saved.');
-      // ---------- reset ----------
-  var resetBtn = document.getElementById('resetServer');
-  var resetArmed = false;
-  var resetTimer = null;
-
-  function disarmReset() {
-    resetArmed = false;
-    resetBtn.textContent = 'Reset this server';
-  }
-
-  resetBtn.addEventListener('click', async function () {
-    if (!resetArmed) {
-      resetArmed = true;
-      resetBtn.textContent = 'Press again to erase everything';
-      resetTimer = setTimeout(disarmReset, 6000);
-      return;
-    }
-
-    clearTimeout(resetTimer);
-    resetBtn.disabled = true;
-    resetBtn.textContent = 'Erasing';
-
-    try {
-      await api(BASE + '/reset', { method: 'DELETE' });
-      window.location.replace('dashboard.html');
-    } catch (e) {
-      notify(e.message, 'error');
-      resetBtn.disabled = false;
-      disarmReset();
-    }
-  });
-
-  loadMappings();
+      loadMappings();
     } catch (e) {
       notify(e.message, 'error');
     }
@@ -654,6 +622,38 @@
     }
 
     btn.disabled = false;
+  });
+
+  // ---------- reset ----------
+  var resetBtn = document.getElementById('resetServer');
+  var resetArmed = false;
+  var resetTimer = null;
+
+  function disarmReset() {
+    resetArmed = false;
+    resetBtn.textContent = 'Reset this server';
+  }
+
+  resetBtn.addEventListener('click', async function () {
+    if (!resetArmed) {
+      resetArmed = true;
+      resetBtn.textContent = 'Press again to erase everything';
+      resetTimer = setTimeout(disarmReset, 6000);
+      return;
+    }
+
+    clearTimeout(resetTimer);
+    resetBtn.disabled = true;
+    resetBtn.textContent = 'Erasing';
+
+    try {
+      await api(BASE + '/reset', { method: 'DELETE' });
+      window.location.replace('dashboard.html');
+    } catch (e) {
+      notify(e.message, 'error');
+      resetBtn.disabled = false;
+      disarmReset();
+    }
   });
 
   loadMappings();
