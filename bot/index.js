@@ -1,7 +1,6 @@
 // ============================================================
-// bot/index.js  -  Discord bot process
-// Deploy as a Render BACKGROUND WORKER (must run 24/7)
-// Start command: node index.js
+// bot/index.js
+// Discord bot process. Runs alongside the API in one service.
 // ============================================================
 'use strict';
 
@@ -15,6 +14,7 @@ const {
 
 const { createClient } = require('@supabase/supabase-js');
 const { startJobLoop, startPremiumSync, renderStatusBoard } = require('./jobs');
+const { handleInteraction, registerCommands } = require('./commands');
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -52,7 +52,9 @@ async function upsertGuild(guild) {
     { onConflict: 'id' }
   );
 
-  await db.from('guild_settings').upsert({ guild_id: guild.id }, { onConflict: 'guild_id', ignoreDuplicates: true });
+  await db
+    .from('guild_settings')
+    .upsert({ guild_id: guild.id }, { onConflict: 'guild_id', ignoreDuplicates: true });
 }
 
 async function getSettings(guildId) {
@@ -75,9 +77,11 @@ function fillTemplate(text, member) {
 async function sendLog(guild, text) {
   const s = await getSettings(guild.id);
   if (!s || !s.log_channel_id) return;
-  const ch = guild.channels.cache.get(s.log_channel_id);
-  if (!ch) return;
-  ch.send({ content: text }).catch(function () {});
+
+  const channel = guild.channels.cache.get(s.log_channel_id);
+  if (!channel) return;
+
+  channel.send({ content: text }).catch(function () {});
 }
 
 // ------------------------------------------------------------
@@ -89,8 +93,9 @@ client.once(Events.ClientReady, async function (c) {
   for (const guild of c.guilds.cache.values()) {
     try {
       await upsertGuild(guild);
+      await registerCommands(guild);
     } catch (e) {
-      console.error('upsertGuild failed for ' + guild.id + ': ' + e.message);
+      console.error('Startup failed for ' + guild.id + ': ' + e.message);
     }
   }
 
@@ -99,11 +104,21 @@ client.once(Events.ClientReady, async function (c) {
 });
 
 // ------------------------------------------------------------
+// slash commands
+// ------------------------------------------------------------
+client.on(Events.InteractionCreate, function (interaction) {
+  handleInteraction(interaction, db).catch(function (e) {
+    console.error('Interaction error: ' + e.message);
+  });
+});
+
+// ------------------------------------------------------------
 // joined a new server
 // ------------------------------------------------------------
 client.on(Events.GuildCreate, async function (guild) {
   console.log('Joined guild ' + guild.name + ' (' + guild.id + ')');
   await upsertGuild(guild);
+  await registerCommands(guild);
 });
 
 // ------------------------------------------------------------
@@ -115,7 +130,7 @@ client.on(Events.GuildDelete, async function (guild) {
 });
 
 // ------------------------------------------------------------
-// member joined: raid check, welcome, autorole, premium restore
+// member joined
 // ------------------------------------------------------------
 client.on(Events.GuildMemberAdd, async function (member) {
   try {
@@ -125,6 +140,7 @@ client.on(Events.GuildMemberAdd, async function (member) {
     // raid protection: hold very new accounts
     if (s.raid_protection && s.min_account_age_days > 0) {
       const ageDays = (Date.now() - member.user.createdTimestamp) / 86400000;
+
       if (ageDays < s.min_account_age_days) {
         await sendLog(
           member.guild,
@@ -140,7 +156,7 @@ client.on(Events.GuildMemberAdd, async function (member) {
       if (role) await member.roles.add(role).catch(function () {});
     }
 
-    // restore premium role if they are still paid up
+    // restore premium role if still paid up
     const { data: prem } = await db
       .from('premium_members')
       .select('tier, expires_at')
@@ -164,20 +180,23 @@ client.on(Events.GuildMemberAdd, async function (member) {
 
     // welcome message
     if (s.welcome_enabled && s.welcome_channel_id) {
-      const ch = member.guild.channels.cache.get(s.welcome_channel_id);
-      if (ch) {
+      const channel = member.guild.channels.cache.get(s.welcome_channel_id);
+
+      if (channel) {
         const embed = new EmbedBuilder()
           .setDescription(fillTemplate(s.welcome_message, member))
-          .setColor(0x5865f2)
+          .setColor(0xffffff)
           .setThumbnail(member.user.displayAvatarURL())
-          .setFooter({ text: 'Member #' + member.guild.memberCount });
+          .setFooter({ text: 'Member ' + member.guild.memberCount });
 
-        ch.send({ embeds: [embed] }).catch(function () {});
+        channel.send({ embeds: [embed] }).catch(function () {});
       }
     }
 
-    // keep the member count fresh
-    await db.from('guilds').update({ member_count: member.guild.memberCount }).eq('id', member.guild.id);
+    await db
+      .from('guilds')
+      .update({ member_count: member.guild.memberCount })
+      .eq('id', member.guild.id);
   } catch (e) {
     console.error('GuildMemberAdd failed: ' + e.message);
   }
@@ -187,7 +206,10 @@ client.on(Events.GuildMemberAdd, async function (member) {
 // member left
 // ------------------------------------------------------------
 client.on(Events.GuildMemberRemove, async function (member) {
-  await db.from('guilds').update({ member_count: member.guild.memberCount }).eq('id', member.guild.id);
+  await db
+    .from('guilds')
+    .update({ member_count: member.guild.memberCount })
+    .eq('id', member.guild.id);
 });
 
 // ------------------------------------------------------------
