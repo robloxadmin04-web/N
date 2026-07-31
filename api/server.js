@@ -360,6 +360,54 @@ app.post('/api/guilds/:guildId/announce', requireUser, requireGuildAccess, async
 });
 
 // ------------------------------------------------------------
+// RESET  -  erase every Helium record for this guild
+// ------------------------------------------------------------
+app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async function (req, res) {
+  const gid = req.guildId;
+
+  // 1. queue role removal for everyone currently holding premium
+  const { data: holders } = await db
+    .from('premium_members')
+    .select('discord_id, tier')
+    .eq('guild_id', gid)
+    .eq('role_applied', true);
+
+  const { data: maps } = await db
+    .from('premium_roles')
+    .select('tier, role_id')
+    .eq('guild_id', gid);
+
+  const roleFor = {};
+  (maps || []).forEach(function (m) { roleFor[m.tier] = m.role_id; });
+
+  let queued = 0;
+
+  for (const h of holders || []) {
+    if (!roleFor[h.tier]) continue;
+    await enqueueJob(gid, 'remove_role', { discord_id: h.discord_id, role_id: roleFor[h.tier] });
+    queued++;
+  }
+
+  // 2. wipe the data. pending jobs survive so the removals above still run.
+  await db.from('premium_code_redemptions').delete().eq('guild_id', gid);
+  await db.from('premium_codes').delete().eq('guild_id', gid);
+  await db.from('premium_members').delete().eq('guild_id', gid);
+  await db.from('premium_roles').delete().eq('guild_id', gid);
+  await db.from('status_entries').delete().eq('guild_id', gid);
+  await db.from('bot_jobs').delete().eq('guild_id', gid).neq('status', 'pending');
+  await db.from('audit_log').delete().eq('guild_id', gid);
+  await db.from('guild_access').delete().eq('guild_id', gid);
+
+  // 3. settings back to factory defaults
+  await db.from('guild_settings').delete().eq('guild_id', gid);
+  await db.from('guild_settings').insert({ guild_id: gid });
+
+  await logAudit(gid, req.dashUser.discord_id, 'server.reset', { roles_queued: queued });
+
+  res.json({ ok: true, roles_queued: queued });
+});
+
+// ------------------------------------------------------------
 // AUDIT LOG
 // ------------------------------------------------------------
 app.get('/api/guilds/:guildId/audit', requireUser, requireGuildAccess, async function (req, res) {
