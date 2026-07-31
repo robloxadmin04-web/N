@@ -11,6 +11,7 @@ const cors = require('cors');
 const {
   db,
   bad,
+  authOnly,
   requireUser,
   requireOwner,
   requireGuildAccess,
@@ -63,6 +64,63 @@ app.post('/api/access/check', async function (req, res) {
     .eq('key', key);
 
   res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// POST /api/access/claim
+// Runs right after Discord sign in. Ties the key to this account
+// the first time it is used, and refuses it for anyone else.
+// ------------------------------------------------------------
+app.post('/api/access/claim', authOnly, async function (req, res) {
+  const me = req.dashUser.discord_id;
+
+  // owners never need a key
+  const { data: owner } = await db
+    .from('owners')
+    .select('discord_id')
+    .eq('discord_id', me)
+    .maybeSingle();
+
+  if (owner) return res.json({ ok: true, owner: true });
+
+  // already linked to this account
+  const { data: mine } = await db
+    .from('access_keys')
+    .select('key')
+    .eq('claimed_by', me)
+    .eq('disabled', false)
+    .limit(1);
+
+  if (mine && mine.length) return res.json({ ok: true, key: mine[0].key });
+
+  const key = String(req.body.key || '').trim();
+  if (!key) return bad(res, 400, 'Enter your access key on the sign in page');
+
+  const { data: row } = await db
+    .from('access_keys')
+    .select('key, disabled, claimed_by')
+    .eq('key', key)
+    .maybeSingle();
+
+  if (!row || row.disabled) return bad(res, 403, 'That access key is not valid');
+
+  if (row.claimed_by && row.claimed_by !== me) {
+    return bad(res, 403, 'That key is already linked to a different Discord account');
+  }
+
+  const { error } = await db
+    .from('access_keys')
+    .update({
+      claimed_by: me,
+      claimed_at: new Date().toISOString(),
+      label: req.dashUser.username || null
+    })
+    .eq('key', key);
+
+  if (error) return bad(res, 500, error.message);
+
+  await logAudit(null, me, 'accesskey.bind', { key: key });
+  res.json({ ok: true, key: key });
 });
 
 // ------------------------------------------------------------
