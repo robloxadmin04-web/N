@@ -588,12 +588,12 @@ select:focus {
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
-.switch input:checked + .track {
+.switch input:checked ~ .track {
   background: var(--white);
   border-color: var(--white);
 }
 
-.switch input:checked + .track::after {
+.switch input:checked ~ .track::after {
   transform: translateX(18px);
   background: var(--black);
 }
