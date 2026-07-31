@@ -460,7 +460,7 @@
                 '<span>' + esc(expiryLabel(m.expires_at)) + '</span>' +
               '</div>' +
             '</div>' +
-            '<button class="iconbtn" data-remove="' + esc(m.discord_id) + '" type="button" title="Revoke">' +
+            '<button class="iconbtn" data-remove="' + esc(m.discord_id) + '" data-tier="' + esc(m.tier) + '" type="button" title="Revoke">' +
               '<span class="sr-only">Revoke premium</span>' + icon('trash') +
             '</button>' +
           '</div>'
@@ -469,9 +469,10 @@
 
       box.querySelectorAll('[data-remove]').forEach(function (btn) {
         btn.addEventListener('click', async function () {
-          if (!confirm('Revoke premium for ' + btn.dataset.remove + '?')) return;
+          if (!confirm('Remove ' + btn.dataset.tier + ' from ' + btn.dataset.remove + '?')) return;
           try {
-            await api(BASE + '/premium/' + encodeURIComponent(btn.dataset.remove), { method: 'DELETE' });
+            await api(BASE + '/premium/' + encodeURIComponent(btn.dataset.remove) +
+              '?tier=' + encodeURIComponent(btn.dataset.tier), { method: 'DELETE' });
             notify('Premium revoked.');
             loadPremium();
           } catch (e) {
