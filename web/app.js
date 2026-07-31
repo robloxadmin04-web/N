@@ -138,9 +138,15 @@ async function api(path, options) {
 
   if (!res.ok) {
     var msg = (payload && payload.error) || 'Request failed with status ' + res.status;
+
     if (res.status === 401 || msg.indexOf('x-discord-token') !== -1) {
       throw new Error('Your Discord session expired. Sign out and sign in again.');
     }
+
+    if (res.status === 429 || msg.indexOf('Discord API 429') !== -1) {
+      throw new Error('Discord is throttling requests. Wait a few seconds, then refresh.');
+    }
+
     throw new Error(msg);
   }
 
