@@ -8,6 +8,7 @@ const { EmbedBuilder } = require('discord.js');
 
 const JOB_INTERVAL_MS = 5000;
 const PREMIUM_INTERVAL_MS = 5 * 60 * 1000;
+const RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 
 const STATE_LABEL = {
@@ -283,4 +284,84 @@ function startPremiumSync(client, db) {
   console.log('Premium sync started');
 }
 
-module.exports = { startJobLoop, startPremiumSync, renderStatusBoard };
+// ------------------------------------------------------------
+// reconcile: the safety net.
+//
+// The sync above only reacts to rows it believes it applied.
+// This pass ignores what the database thinks and looks at who
+// actually holds each premium role in Discord. Anyone holding a
+// role without a live membership loses it. That covers manual
+// database edits, failed jobs, downtime and roles handed out by
+// hand.
+// ------------------------------------------------------------
+async function reconcileGuild(client, db, guildId) {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+
+  const { data: maps } = await db
+    .from('premium_roles')
+    .select('tier, role_id')
+    .eq('guild_id', guildId);
+
+  if (!maps || maps.length === 0) return;
+
+  const { data: rows } = await db
+    .from('premium_members')
+    .select('discord_id, tier, expires_at')
+    .eq('guild_id', guildId);
+
+  const now = Date.now();
+  const live = new Set();
+
+  (rows || []).forEach(function (r) {
+    const active = !r.expires_at || new Date(r.expires_at).getTime() > now;
+    if (active) live.add(r.discord_id + '|' + r.tier);
+  });
+
+  // role.members is only accurate once the member list is loaded
+  await guild.members.fetch().catch(function () {});
+
+  for (const map of maps) {
+    const role = guild.roles.cache.get(map.role_id);
+    if (!role) continue;
+
+    for (const member of role.members.values()) {
+      if (member.user.bot) continue;
+      if (live.has(member.id + '|' + map.tier)) continue;
+
+      try {
+        await member.roles.remove(role);
+        console.log('Reconcile: took ' + role.name + ' from ' + member.user.tag);
+      } catch (e) {
+        console.error('Reconcile could not remove ' + role.name + ' from ' + member.user.tag + ': ' + e.message);
+        continue;
+      }
+
+      await db
+        .from('premium_members')
+        .update({ role_applied: false })
+        .eq('guild_id', guildId)
+        .eq('discord_id', member.id)
+        .eq('tier', map.tier);
+    }
+  }
+}
+
+function startReconcile(client, db) {
+  async function run() {
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        await reconcileGuild(client, db, guild.id);
+      } catch (e) {
+        console.error('Reconcile failed for ' + guild.id + ': ' + e.message);
+      }
+    }
+  }
+
+  setTimeout(run, 30000);
+  setInterval(run, RECONCILE_INTERVAL_MS);
+
+  console.log('Reconcile started');
+}
+
+module.exports = { startJobLoop, startPremiumSync, startReconcile, renderStatusBoard };
