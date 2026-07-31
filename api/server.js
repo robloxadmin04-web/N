@@ -201,7 +201,7 @@ app.post('/api/guilds/:guildId/premium', requireUser, requireGuildAccess, async 
         expires_at: expires,
         role_applied: false
       },
-      { onConflict: 'guild_id,discord_id' }
+      { onConflict: 'guild_id,discord_id,tier' }
     )
     .select()
     .single();
@@ -214,29 +214,50 @@ app.post('/api/guilds/:guildId/premium', requireUser, requireGuildAccess, async 
 
 app.delete('/api/guilds/:guildId/premium/:discordId', requireUser, requireGuildAccess, async function (req, res) {
   const discordId = req.params.discordId;
+  const tier = req.query.tier ? String(req.query.tier) : null;
 
-  const { data: row } = await db
+  let find = db
     .from('premium_members')
     .select('tier, role_applied')
     .eq('guild_id', req.guildId)
-    .eq('discord_id', discordId)
-    .maybeSingle();
+    .eq('discord_id', discordId);
 
-  if (!row) return bad(res, 404, 'Not found');
+  if (tier) find = find.eq('tier', tier);
 
-  const { data: mapping } = await db
+  const { data: rows } = await find;
+  if (!rows || rows.length === 0) return bad(res, 404, 'Not found');
+
+  const { data: maps } = await db
     .from('premium_roles')
-    .select('role_id')
-    .eq('guild_id', req.guildId)
-    .eq('tier', row.tier)
-    .maybeSingle();
+    .select('tier, role_id')
+    .eq('guild_id', req.guildId);
 
-  if (mapping && row.role_applied) {
-    await enqueueJob(req.guildId, 'remove_role', { discord_id: discordId, role_id: mapping.role_id });
+  const roleFor = {};
+  (maps || []).forEach(function (m) { roleFor[m.tier] = m.role_id; });
+
+  for (const row of rows) {
+    if (row.role_applied && roleFor[row.tier]) {
+      await enqueueJob(req.guildId, 'remove_role', {
+        discord_id: discordId,
+        role_id: roleFor[row.tier],
+        tier: row.tier
+      });
+    }
   }
 
-  await db.from('premium_members').delete().eq('guild_id', req.guildId).eq('discord_id', discordId);
-  await logAudit(req.guildId, req.dashUser.discord_id, 'premium.revoke', { discordId });
+  let del = db
+    .from('premium_members')
+    .delete()
+    .eq('guild_id', req.guildId)
+    .eq('discord_id', discordId);
+
+  if (tier) del = del.eq('tier', tier);
+  await del;
+
+  await logAudit(req.guildId, req.dashUser.discord_id, 'premium.revoke', {
+    discordId: discordId,
+    tier: tier || 'all'
+  });
 
   res.json({ ok: true });
 });
@@ -384,7 +405,7 @@ app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async 
 
   for (const h of holders || []) {
     if (!roleFor[h.tier]) continue;
-    await enqueueJob(gid, 'remove_role', { discord_id: h.discord_id, role_id: roleFor[h.tier] });
+    await enqueueJob(gid, 'remove_role', { discord_id: h.discord_id, role_id: roleFor[h.tier], tier: h.tier });
     queued++;
   }
 
@@ -452,7 +473,7 @@ app.post('/api/webhooks/purchase', async function (req, res) {
       expires_at: expires,
       role_applied: false
     },
-    { onConflict: 'guild_id,discord_id' }
+    { onConflict: 'guild_id,discord_id,tier' }
   );
 
   if (error) return bad(res, 500, error.message);
