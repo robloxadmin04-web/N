@@ -73,17 +73,9 @@ app.post('/api/access/check', async function (req, res) {
 // ------------------------------------------------------------
 app.post('/api/access/claim', authOnly, async function (req, res) {
   const me = req.dashUser.discord_id;
+  const key = String(req.body.key || '').trim();
 
-  // owners never need a key
-  const { data: owner } = await db
-    .from('owners')
-    .select('discord_id')
-    .eq('discord_id', me)
-    .maybeSingle();
-
-  if (owner) return res.json({ ok: true, owner: true });
-
-  // already linked to this account
+  // Already linked to this account? Nothing more to do.
   const { data: mine } = await db
     .from('access_keys')
     .select('key')
@@ -93,34 +85,46 @@ app.post('/api/access/claim', authOnly, async function (req, res) {
 
   if (mine && mine.length) return res.json({ ok: true, key: mine[0].key });
 
-  const key = String(req.body.key || '').trim();
-  if (!key) return bad(res, 400, 'Enter your access key on the sign in page');
+  // A key was submitted, so bind it. Owners bind too, otherwise
+  // their key stays unowned and the next person to type it takes it.
+  if (key) {
+    const { data: row } = await db
+      .from('access_keys')
+      .select('key, disabled, claimed_by')
+      .eq('key', key)
+      .maybeSingle();
 
-  const { data: row } = await db
-    .from('access_keys')
-    .select('key, disabled, claimed_by')
-    .eq('key', key)
-    .maybeSingle();
+    if (!row || row.disabled) return bad(res, 403, 'That access key is not valid');
 
-  if (!row || row.disabled) return bad(res, 403, 'That access key is not valid');
+    if (row.claimed_by && row.claimed_by !== me) {
+      return bad(res, 403, 'That key is already linked to a different Discord account');
+    }
 
-  if (row.claimed_by && row.claimed_by !== me) {
-    return bad(res, 403, 'That key is already linked to a different Discord account');
+    const { error } = await db
+      .from('access_keys')
+      .update({
+        claimed_by: me,
+        claimed_at: new Date().toISOString(),
+        label: req.dashUser.username || null
+      })
+      .eq('key', key);
+
+    if (error) return bad(res, 500, error.message);
+
+    await logAudit(null, me, 'accesskey.bind', { key: key });
+    return res.json({ ok: true, key: key });
   }
 
-  const { error } = await db
-    .from('access_keys')
-    .update({
-      claimed_by: me,
-      claimed_at: new Date().toISOString(),
-      label: req.dashUser.username || null
-    })
-    .eq('key', key);
+  // No key given. Owners are still allowed through.
+  const { data: owner } = await db
+    .from('owners')
+    .select('discord_id')
+    .eq('discord_id', me)
+    .maybeSingle();
 
-  if (error) return bad(res, 500, error.message);
+  if (owner) return res.json({ ok: true, owner: true });
 
-  await logAudit(null, me, 'accesskey.bind', { key: key });
-  res.json({ ok: true, key: key });
+  return bad(res, 400, 'Enter your access key on the sign in page');
 });
 
 // ------------------------------------------------------------
