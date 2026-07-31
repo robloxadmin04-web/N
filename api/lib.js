@@ -35,18 +35,70 @@ function bearer(req) {
   return raw.slice(7).trim();
 }
 
-async function discordFetch(path, token, isBot) {
+// Discord rate limits hard. Wait the amount it asks for and
+// try again, up to twice, before giving up.
+async function discordFetch(path, token, isBot, attempt) {
+  const tries = attempt || 0;
   const prefix = isBot ? 'Bot ' : 'Bearer ';
+
   const r = await fetch(DISCORD_API + path, {
     headers: { Authorization: prefix + token }
   });
+
+  if (r.status === 429 && tries < 2) {
+    let waitMs = 1000;
+
+    try {
+      const body = await r.json();
+      if (body && body.retry_after) waitMs = Math.ceil(body.retry_after * 1000) + 250;
+    } catch (e) {
+      // no body, fall back to one second
+    }
+
+    await new Promise(function (done) { setTimeout(done, Math.min(waitMs, 5000)); });
+    return discordFetch(path, token, isBot, tries + 1);
+  }
+
   if (!r.ok) {
     const text = await r.text();
     const err = new Error('Discord API ' + r.status + ': ' + text);
     err.status = r.status;
     throw err;
   }
+
   return r.json();
+}
+
+// ------------------------------------------------------------
+// The server page loads settings, channels and roles at once.
+// Without this, all three would ask Discord for the same guild
+// list in the same instant and trip the rate limit.
+// ------------------------------------------------------------
+const GUILD_TTL_MS = 30000;
+const guildCache = new Map();
+const guildInflight = new Map();
+
+async function fetchUserGuilds(token) {
+  const cached = guildCache.get(token);
+  if (cached && Date.now() - cached.at < GUILD_TTL_MS) return cached.data;
+
+  const running = guildInflight.get(token);
+  if (running) return running;
+
+  const request = discordFetch('/users/@me/guilds', token, false)
+    .then(function (data) {
+      if (guildCache.size > 200) guildCache.clear();
+      guildCache.set(token, { at: Date.now(), data: data });
+      guildInflight.delete(token);
+      return data;
+    })
+    .catch(function (e) {
+      guildInflight.delete(token);
+      throw e;
+    });
+
+  guildInflight.set(token, request);
+  return request;
 }
 
 // ------------------------------------------------------------
@@ -102,7 +154,7 @@ async function listManageableGuilds(req) {
     throw err;
   }
 
-  const guilds = await discordFetch('/users/@me/guilds', providerToken, false);
+  const guilds = await fetchUserGuilds(providerToken);
 
   const manageable = guilds.filter(function (g) {
     const perms = BigInt(g.permissions || '0');
