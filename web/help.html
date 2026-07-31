@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="How to use Helium: setup, settings, premium roles, redeem codes and commands.">
+<title>How to use Helium</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* ---------- docs layout ---------- */
+
+.docs {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 22px 18px 96px;
+}
+
+@media (min-width: 900px) {
+  .docs {
+    display: grid;
+    grid-template-columns: 196px 1fr;
+    gap: 48px;
+    padding-top: 34px;
+  }
+}
+
+/* ---------- table of contents ---------- */
+
+.toc {
+  margin-bottom: 26px;
+}
+
+.toc-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.toc-list::-webkit-scrollbar {
+  display: none;
+}
+
+.toc a {
+  display: block;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-faint);
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.toc a.on {
+  color: var(--text);
+  border-color: var(--border-hi);
+  background: var(--surface-3);
+}
+
+@media (min-width: 900px) {
+  .toc {
+    position: sticky;
+    top: 78px;
+    align-self: start;
+    margin-bottom: 0;
+  }
+
+  .toc-list {
+    display: block;
+    overflow: visible;
+    border-left: 1px solid var(--border);
+  }
+
+  .toc a {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 6px 0 6px 14px;
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    white-space: normal;
+  }
+
+  .toc a.on {
+    background: transparent;
+    color: var(--text);
+    border-left-color: var(--white);
+  }
+}
+
+/* ---------- prose ---------- */
+
+.doc section {
+  padding-top: 12px;
+  margin-bottom: 42px;
+  scroll-margin-top: 76px;
+}
+
+.doc h2 {
+  font-size: 19px;
+  letter-spacing: -0.015em;
+  margin-bottom: 8px;
+}
+
+.doc h3 {
+  font-size: 15px;
+  margin: 26px 0 8px;
+}
+
+.doc p {
+  color: var(--text-dim);
+  font-size: 14.5px;
+  margin-bottom: 13px;
+  max-width: 62ch;
+}
+
+.doc p strong,
+.doc li strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.doc .lead {
+  color: var(--text);
+  font-size: 15.5px;
+}
+
+.doc ul.bullets {
+  margin: 0 0 14px;
+  max-width: 62ch;
+}
+
+.doc ul.bullets li {
+  position: relative;
+  color: var(--text-dim);
+  font-size: 14.5px;
+  padding-left: 17px;
+  margin-bottom: 7px;
+}
+
+.doc ul.bullets li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border-hi);
+}
+
+/* ---------- numbered steps ---------- */
+
+.steps {
+  counter-reset: step;
+  margin-bottom: 16px;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 38px;
+  margin-bottom: 18px;
+  color: var(--text-dim);
+  font-size: 14.5px;
+  max-width: 62ch;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-hi);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.steps li .st {
+  display: block;
+  color: var(--text);
+  font-weight: 550;
+  margin-bottom: 2px;
+}
+
+/* ---------- command block ---------- */
+
+.cmd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 9px 9px 13px;
+  margin: 0 0 9px;
+}
+
+.cmd code {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--text);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.cmd code::-webkit-scrollbar {
+  display: none;
+}
+
+.copy {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.copy:active {
+  background: var(--surface-3);
+}
+
+.copy svg {
+  width: 14px;
+  height: 14px;
+}
+
+.copy[data-done="true"] {
+  color: var(--white);
+  border-color: var(--border-hi);
+}
+
+/* ---------- callout ---------- */
+
+.callout {
+  display: flex;
+  gap: 12px;
+  border: 1px solid var(--border-hi);
+  border-left-width: 2px;
+  border-left-color: var(--white);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 14px 15px;
+  margin: 0 0 18px;
+  max-width: 62ch;
+}
+
+.callout svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--text);
+}
+
+.callout .ct {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.callout p {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+/* ---------- table ---------- */
+
+.tablewrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+table.ref {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 380px;
+}
+
+table.ref th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+table.ref td {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  vertical-align: top;
+}
+
+table.ref tr:last-child td {
+  border-bottom: none;
+}
+
+table.ref td:first-child {
+  color: var(--text);
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* ---------- flow ---------- */
+
+.flow {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  max-width: 62ch;
+}
+
+.flow div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 11px 14px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.flow div span {
+  color: var(--text);
+  font-weight: 600;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 1px;
+}
+
+/* ---------- faq ---------- */
+
+.qa {
+  border-top: 1px solid var(--border);
+  padding: 15px 0;
+  max-width: 62ch;
+}
+
+.qa:last-of-type {
+  border-bottom: 1px solid var(--border);
+}
+
+.qa .q {
+  font-size: 14.5px;
+  font-weight: 550;
+  margin-bottom: 5px;
+}
+
+.qa .a {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="iconbtn" href="dashboard.html" title="Back to dashboard">
+      <span class="sr-only">Back to dashboard</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 3.5 5.5 8l4.5 4.5"/>
+      </svg>
+    </a>
+
+    <div class="title">
+      <h1>How to use Helium</h1>
+      <div class="meta">Setup, settings, premium and commands</div>
+    </div>
+  </div>
+</header>
+
+<div class="docs">
+
+  <nav class="toc" aria-label="Sections">
+    <div class="toc-list">
+      <a href="#overview">Overview</a>
+      <a href="#setup">First setup</a>
+      <a href="#roles">Role position</a>
+      <a href="#settings">Settings</a>
+      <a href="#premium">Premium</a>
+      <a href="#codes">Selling with codes</a>
+      <a href="#commands">Commands</a>
+      <a href="#board">Status board</a>
+      <a href="#announce">Announcements</a>
+      <a href="#trouble">Troubleshooting</a>
+      <a href="#faq">FAQ</a>
+    </div>
+  </nav>
+
+  <main class="doc">
+
+    <!-- ============ OVERVIEW ============ -->
+    <section id="overview">
+      <h2>Overview</h2>
+      <p class="lead">Helium is two pieces working together. This website is where you change things. The bot is what carries them out inside Discord.</p>
+
+      <div class="flow">
+        <div><span>You</span>Change a setting or grant premium on this site.</div>
+        <div><span>Helium</span>Stores it, then tells the bot what to do.</div>
+        <div><span>Discord</span>The role appears, the message posts, the board updates.</div>
+      </div>
+
+      <p>Most actions land in a few seconds. Premium role changes made from the website can take up to <strong>five minutes</strong>, because the bot reconciles memberships on a timer. Anything done with a slash command inside Discord is instant.</p>
+
+      <h3>What it handles</h3>
+      <ul class="bullets">
+        <li><strong>Premium roles</strong> that grant and expire on their own</li>
+        <li><strong>Redeem codes</strong> so buyers get access without waiting for you</li>
+        <li><strong>Welcome messages</strong> and an automatic role for new members</li>
+        <li><strong>Raid protection</strong> that screens brand new accounts</li>
+        <li><strong>A status board</strong> that edits itself in place</li>
+        <li><strong>Announcements</strong> posted as clean embeds</li>
+      </ul>
+    </section>
+
+    <!-- ============ SETUP ============ -->
+    <section id="setup">
+      <h2>First setup</h2>
+      <p>Five minutes, done once per server.</p>
+
+      <ol class="steps">
+        <li><span class="st">Sign in with Discord</span>Helium only asks for your identity and the list of servers you manage. It never reads messages.</li>
+        <li><span class="st">Install Helium</span>On the servers page, press Install next to the server you want. Servers you already installed show Open instead.</li>
+        <li><span class="st">Move the Helium role up</span>Server Settings, then Roles. Drag Helium above every role it will hand out. Skipping this is the single most common reason things silently fail.</li>
+        <li><span class="st">Create the role you will sell</span>Any role works. Name it Premium, VIP, whatever fits your server.</li>
+        <li><span class="st">Pick your channels</span>In Settings, choose where welcome messages, announcements and the status board should go.</li>
+      </ol>
+    </section>
+
+    <!-- ============ ROLE POSITION ============ -->
+    <section id="roles">
+      <h2>Role position</h2>
+
+      <div class="callout">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M8 1.8 15 14H1z"/><path d="M8 6.4v3M8 11.6h.01"/></svg>
+        <div>
+          <div class="ct">Discord will not let a bot touch a role above itself</div>
+          <p>If Helium sits below the role it is meant to grant, every attempt fails. The website will still say saved, because the failure happens inside Discord.</p>
+        </div>
+      </div>
+
+      <p>Open Server Settings, then Roles, and make the order look like this:</p>
+
+      <div class="cmd"><code>Helium
+Premium
+@everyone</code></div>
+
+      <p>Helium above, the roles it manages below. Roles that other bots or integrations created cannot be granted by anyone, so they never appear in the dropdown.</p>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="settings">
+      <h2>Settings</h2>
+
+      <h3>Welcome message</h3>
+      <p>Posted as an embed in the channel you choose whenever someone joins. Four placeholders are swapped in automatically.</p>
+
+      <div class="tablewrap">
+        <table class="ref">
+          <thead><tr><th>Placeholder</th><th>Becomes</th></tr></thead>
+          <tbody>
+            <tr><td>{user}</td><td>A mention that pings the new member</td></tr>
+            <tr><td>{username}</td><td>Their name without the ping</td></tr>
+            <tr><td>{server}</td><td>Your server name</td></tr>
+            <tr><td>{count}</td><td>How many members you now have</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cmd">
+        <code>Welcome {user}, you are member {count} of {server}.</code>
+        <button class="copy" data-copy="Welcome {user}, you are member {count} of {server}."><span class="sr-only">Copy</span></button>
+      </div>
+
+      <h3>Auto role</h3>
+      <p>Given to <strong>everyone</strong> who joins, paying or not. Usually a plain Member role that unlocks the rest of the server.</p>
+
+      <div class="callout">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M8 7.4v3.6M8 5.2h.01"/></svg>
+        <div>
+          <div class="ct">Do not use your premium role here</div>
+          <p>Auto role and premium are separate systems. Point them at the same role and every new member becomes premium the moment they join.</p>
+        </div>
+      </div>
+
+      <h3>Raid protection</h3>
+      <p>Holds accounts younger than the number of days you set. Held members get no welcome message and no auto role, and a line is written to your log channel. Set the minimum age to 0 to accept everyone.</p>
+
+      <h3>Channels</h3>
+      <ul class="bullets">
+        <li><strong>Moderation log</strong> quiet notices meant for staff</li>
+        <li><strong>Announcements</strong> where posts from the Announce tab go</li>
+        <li><strong>Status board</strong> holds one message that Helium keeps editing</li>
+      </ul>
+    </section>
+
+    <!-- ============ PREMIUM ============ -->
+    <section id="premium">
+      <h2>Premium</h2>
+      <p>Premium needs two things before a role can ever appear. Miss either one and nothing happens.</p>
+
+      <div class="flow">
+        <div><span>1. A mapping</span>Which Discord role belongs to which tier.</div>
+        <div><span>2. A member</span>Who paid, and until when.</div>
+      </div>
+
+      <h3>Create the mapping</h3>
+      <p>Premium tab, first card. Type a tier name, pick a role, save. One tier maps to one role. You only do this once unless you add more tiers.</p>
+
+      <p>Tier names are free text. <kbd>basic</kbd>, <kbd>vip</kbd>, <kbd>lifetime</kbd> all work, but the spelling must match exactly wherever you use it. <kbd>VIP</kbd> and <kbd>vip</kbd> are two different tiers.</p>
+
+      <h3>Grant access</h3>
+      <p>Enter the numeric Discord ID, the tier, and how many days. The role lands within five minutes.</p>
+
+      <p>To find someone's ID, turn on Developer Mode in Discord under Settings, Advanced. Then press and hold their name and choose Copy ID. It is a long number, not their username.</p>
+
+      <h3>What happens next, on its own</h3>
+      <ul class="bullets">
+        <li>The role is granted within five minutes of the grant</li>
+        <li>When the expiry date passes, the role is removed</li>
+        <li>If a paid member leaves and rejoins, the role comes straight back</li>
+        <li>Granting again while time remains <strong>adds</strong> days instead of replacing them</li>
+      </ul>
+    </section>
+
+    <!-- ============ CODES ============ -->
+    <section id="codes">
+      <h2>Selling with codes</h2>
+      <p>Codes turn any payment method into an instant role. It does not matter whether the buyer paid by transfer, wallet, or through your own site.</p>
+
+      <div class="flow">
+        <div><span>1. Buyer pays</span>Any method you accept. You confirm it yourself.</div>
+        <div><span>2. You create a code</span>One command in Discord, takes a second.</div>
+        <div><span>3. Buyer redeems</span>They run one command and the role appears immediately.</div>
+      </div>
+
+      <h3>Create a code</h3>
+      <div class="cmd">
+        <code>/premium code days:30 uses:1</code>
+        <button class="copy" data-copy="/premium code days:30 uses:1"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <p>Helium replies privately with something like <kbd>A7K2-9XM4-PQ3R</kbd>. Only you can see it. Send it to the buyer.</p>
+
+      <h3>The buyer redeems it</h3>
+      <div class="cmd">
+        <code>/redeem code:A7K2-9XM4-PQ3R</code>
+        <button class="copy" data-copy="/redeem code:A7K2-9XM4-PQ3R"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <p>The reply is private to them, and the role is applied on the spot. No five minute wait.</p>
+
+      <h3>Things worth knowing</h3>
+      <ul class="bullets">
+        <li>A code only works in the server it was created for</li>
+        <li>One person can redeem a given code once</li>
+        <li>Raise <kbd>uses</kbd> to make a shared code for a giveaway</li>
+        <li>Redeeming with time left on the clock adds days rather than resetting them</li>
+        <li><kbd>/premium codes</kbd> lists everything still usable</li>
+      </ul>
+    </section>
+
+    <!-- ============ COMMANDS ============ -->
+    <section id="commands">
+      <h2>Commands</h2>
+      <p>Every reply is private. Nobody else in the channel sees your codes or anyone's membership.</p>
+
+      <h3>For members</h3>
+      <div class="cmd">
+        <code>/redeem code:YOUR-CODE-HERE</code>
+        <button class="copy" data-copy="/redeem code:YOUR-CODE-HERE"><span class="sr-only">Copy</span></button>
+      </div>
+      <div class="cmd">
+        <code>/premium status</code>
+        <button class="copy" data-copy="/premium status"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <h3>For staff</h3>
+      <p>These require the Manage Server permission.</p>
+
+      <div class="cmd">
+        <code>/premium code days:30 uses:1 tier:basic</code>
+        <button class="copy" data-copy="/premium code days:30 uses:1 tier:basic"><span class="sr-only">Copy</span></button>
+      </div>
+      <div class="cmd">
+        <code>/premium codes</code>
+        <button class="copy" data-copy="/premium codes"><span class="sr-only">Copy</span></button>
+      </div>
+      <div class="cmd">
+        <code>/premium grant user:@member days:30</code>
+        <button class="copy" data-copy="/premium grant user:@member days:30"><span class="sr-only">Copy</span></button>
+      </div>
+      <div class="cmd">
+        <code>/premium revoke user:@member</code>
+        <button class="copy" data-copy="/premium revoke user:@member"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <div class="tablewrap">
+        <table class="ref">
+          <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>days</td><td>How long the membership lasts, 1 to 3650</td></tr>
+            <tr><td>uses</td><td>How many different people can redeem a code, default 1</td></tr>
+            <tr><td>tier</td><td>Which mapping to use, defaults to basic</td></tr>
+            <tr><td>note</td><td>A private label so you remember who a code was for</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ BOARD ============ -->
+    <section id="board">
+      <h2>Status board</h2>
+      <p>One message in your chosen channel that Helium rewrites every time you change an entry. It never posts a second copy, so the channel stays clean and the board can be pinned.</p>
+
+      <p>Each entry has a state: <strong>Working</strong>, <strong>Patched</strong>, <strong>Maintenance</strong> or <strong>Unknown</strong>. The footer counts how many are working out of the total.</p>
+
+      <p>If you delete the board message by hand, Helium posts a fresh one the next time something changes.</p>
+    </section>
+
+    <!-- ============ ANNOUNCE ============ -->
+    <section id="announce">
+      <h2>Announcements</h2>
+      <p>Write a title and a body, press post, and it appears in your announcements channel as an embed within a few seconds. An optional link turns the title into a clickable heading.</p>
+      <p>Set the announcements channel in Settings first, otherwise the post has nowhere to go.</p>
+    </section>
+
+    <!-- ============ TROUBLE ============ -->
+    <section id="trouble">
+      <h2>Troubleshooting</h2>
+
+      <h3>The role never appeared</h3>
+      <p>Work through these in order. It is almost always the first one.</p>
+      <ul class="bullets">
+        <li>Helium is below the role in Server Settings, Roles</li>
+        <li>No mapping exists for that tier yet</li>
+        <li>The tier is spelled differently in the mapping and in the grant</li>
+        <li>The Discord ID belongs to a role, not a person. Role mentions contain an extra <kbd>&amp;</kbd></li>
+        <li>Fewer than five minutes have passed since a website grant</li>
+      </ul>
+
+      <h3>No welcome message</h3>
+      <ul class="bullets">
+        <li>The toggle is off, or no channel is selected</li>
+        <li>Raid protection held the account because it is too new</li>
+        <li>Helium cannot see or post in that channel</li>
+      </ul>
+
+      <h3>Slash commands are missing</h3>
+      <p>Close Discord fully and reopen it. Commands register per server when Helium joins, so a client that has been open a long time may not have picked them up.</p>
+
+      <h3>The site is slow on the first load</h3>
+      <p>The service sleeps when nobody has used it for a while. The first request wakes it, which takes up to a minute. Everything after that is fast.</p>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section id="faq">
+      <h2>FAQ</h2>
+
+      <div class="qa">
+        <div class="q">Can Helium read our messages?</div>
+        <div class="a">No. It never requests message content, and cannot see what anyone types.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Can I use any role for premium?</div>
+        <div class="a">Any role you created yourself, as long as Helium sits above it. Roles owned by other bots or integrations cannot be granted by anyone and are hidden from the list.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">What happens when a membership expires?</div>
+        <div class="a">The role is removed automatically. Nobody has to remember to do it.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Can one person hold two tiers?</div>
+        <div class="a">Redeeming a second tier adds that role without removing the first. Revoke before upgrading if you want a clean swap.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Does a code expire if nobody uses it?</div>
+        <div class="a">No. It stays valid until it hits its use limit or you disable it.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">Can I manage more than one server?</div>
+        <div class="a">Yes. Every server you have Manage Server on appears after you sign in, each with its own settings and members.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  var COPY_ICON =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.4"/>' +
+    '<path d="M10.5 3.2A1.2 1.2 0 0 0 9.3 2H3.7A1.7 1.7 0 0 0 2 3.7v5.6A1.2 1.2 0 0 0 3.2 10.5"/></svg>';
+
+  var DONE_ICON =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M13.5 4.5 6.5 11.5 3 8"/></svg>';
+
+  // paint the copy buttons
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.insertAdjacentHTML('beforeend', COPY_ICON);
+  });
+
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('.copy');
+    if (!btn) return;
+
+    var text = btn.getAttribute('data-copy');
+
+    function done() {
+      var svg = btn.querySelector('svg');
+      if (svg) svg.outerHTML = DONE_ICON;
+      btn.setAttribute('data-done', 'true');
+
+      setTimeout(function () {
+        var current = btn.querySelector('svg');
+        if (current) current.outerHTML = COPY_ICON;
+        btn.removeAttribute('data-done');
+      }, 1600);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+
+    function fallback() {
+      var box = document.createElement('textarea');
+      box.value = text;
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(box);
+    }
+  });
+
+  // highlight the section you are reading
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var sections = links.map(function (a) {
+    return document.querySelector(a.getAttribute('href'));
+  });
+
+  function sync() {
+    var line = window.scrollY + 110;
+    var index = 0;
+
+    sections.forEach(function (section, i) {
+      if (section && section.offsetTop <= line) index = i;
+    });
+
+    links.forEach(function (a, i) {
+      a.classList.toggle('on', i === index);
+    });
+  }
+
+  window.addEventListener('scroll', sync, { passive: true });
+  sync();
+})();
+</script>
+
+</body>
+</html>
