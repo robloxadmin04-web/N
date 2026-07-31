@@ -104,21 +104,23 @@ async function runJob(client, db, job) {
     const role = guild.roles.cache.get(p.role_id);
     if (!role) throw new Error('Role not found');
 
-    if (job.type === 'add_role') {
+    const applied = job.type === 'add_role';
+
+    if (applied) {
       await member.roles.add(role);
-      await db
-        .from('premium_members')
-        .update({ role_applied: true })
-        .eq('guild_id', job.guild_id)
-        .eq('discord_id', p.discord_id);
     } else {
       await member.roles.remove(role);
-      await db
-        .from('premium_members')
-        .update({ role_applied: false })
-        .eq('guild_id', job.guild_id)
-        .eq('discord_id', p.discord_id);
     }
+
+    // Only touch the row for this tier. A member can hold several.
+    let mark = db
+      .from('premium_members')
+      .update({ role_applied: applied })
+      .eq('guild_id', job.guild_id)
+      .eq('discord_id', p.discord_id);
+
+    if (p.tier) mark = mark.eq('tier', p.tier);
+    await mark;
     return;
   }
 
@@ -241,7 +243,7 @@ function startPremiumSync(client, db) {
         await db.from('bot_jobs').insert({
           guild_id: m.guild_id,
           type: 'remove_role',
-          payload: { discord_id: m.discord_id, role_id: map.role_id }
+          payload: { discord_id: m.discord_id, role_id: map.role_id, tier: m.tier }
         });
       }
 
@@ -267,7 +269,7 @@ function startPremiumSync(client, db) {
         await db.from('bot_jobs').insert({
           guild_id: m.guild_id,
           type: 'add_role',
-          payload: { discord_id: m.discord_id, role_id: map.role_id }
+          payload: { discord_id: m.discord_id, role_id: map.role_id, tier: m.tier }
         });
       }
     } catch (e) {
