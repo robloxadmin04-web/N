@@ -12,6 +12,7 @@ const {
   db,
   bad,
   requireUser,
+  requireOwner,
   requireGuildAccess,
   listManageableGuilds,
   enqueueJob,
@@ -39,10 +40,112 @@ app.get('/health', function (req, res) {
 });
 
 // ------------------------------------------------------------
+// POST /api/access/check
+// Public. The landing page calls this before Discord sign in.
+// Confirms a key exists and is enabled. This only gates entry,
+// it does not decide who is owner.
+// ------------------------------------------------------------
+app.post('/api/access/check', async function (req, res) {
+  const key = String(req.body.key || '').trim();
+  if (!key) return bad(res, 400, 'Enter an access key');
+
+  const { data: row } = await db
+    .from('access_keys')
+    .select('key, disabled')
+    .eq('key', key)
+    .maybeSingle();
+
+  if (!row || row.disabled) return bad(res, 403, 'That access key is not valid');
+
+  await db
+    .from('access_keys')
+    .update({ uses: (row.uses || 0) + 1, last_used: new Date().toISOString() })
+    .eq('key', key);
+
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
 // GET /api/me
 // ------------------------------------------------------------
 app.get('/api/me', requireUser, function (req, res) {
   res.json({ user: req.dashUser });
+});
+
+// ------------------------------------------------------------
+// GET /api/owner/me  -  is this signed in user an owner?
+// ------------------------------------------------------------
+app.get('/api/owner/me', requireUser, async function (req, res) {
+  const { data } = await db
+    .from('owners')
+    .select('discord_id')
+    .eq('discord_id', req.dashUser.discord_id)
+    .maybeSingle();
+
+  res.json({ owner: Boolean(data) });
+});
+
+// ------------------------------------------------------------
+// GET /api/owner/keys  -  list every access key
+// ------------------------------------------------------------
+app.get('/api/owner/keys', requireUser, requireOwner, async function (req, res) {
+  const { data, error } = await db
+    .from('access_keys')
+    .select('key, label, disabled, uses, last_used, created_at')
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ keys: data || [] });
+});
+
+// ------------------------------------------------------------
+// POST /api/owner/keys  -  generate a new key
+// ------------------------------------------------------------
+app.post('/api/owner/keys', requireUser, requireOwner, async function (req, res) {
+  const label = String(req.body.label || '').trim().slice(0, 60) || null;
+
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let key = 'KEY-';
+  for (let i = 0; i < 16; i++) {
+    if (i === 8) key += '-';
+    key += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  const { error } = await db.from('access_keys').insert({
+    key: key,
+    label: label,
+    created_by: req.dashUser.discord_id
+  });
+
+  if (error) return bad(res, 500, error.message);
+
+  await logAudit(null, req.dashUser.discord_id, 'accesskey.create', { label: label });
+  res.json({ key: key, label: label });
+});
+
+// ------------------------------------------------------------
+// PATCH /api/owner/keys/:key  -  enable or disable a key
+// ------------------------------------------------------------
+app.patch('/api/owner/keys/:key', requireUser, requireOwner, async function (req, res) {
+  const disabled = Boolean(req.body.disabled);
+
+  const { error } = await db
+    .from('access_keys')
+    .update({ disabled: disabled })
+    .eq('key', req.params.key);
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// DELETE /api/owner/keys/:key
+// ------------------------------------------------------------
+app.delete('/api/owner/keys/:key', requireUser, requireOwner, async function (req, res) {
+  await db.from('access_keys').delete().eq('key', req.params.key);
+  await logAudit(null, req.dashUser.discord_id, 'accesskey.delete', { key: req.params.key });
+  res.json({ ok: true });
 });
 
 // ------------------------------------------------------------
