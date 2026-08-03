@@ -792,6 +792,12 @@ async function handleInteraction(interaction, db) {
   }
 
   try {
+    if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {
+      if (interaction.customId.startsWith('ticket:')) {
+        return await handleTicketButton(interaction, db);
+      }
+      return;
+    }
     if (interaction.isButton()) return await handleButton(interaction, db);
     if (interaction.isModalSubmit()) return await handleModal(interaction, db);
     if (!interaction.isChatInputCommand()) return;
