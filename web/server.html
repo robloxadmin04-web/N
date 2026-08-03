@@ -291,32 +291,54 @@
   <!-- ================= TICKETS ================= -->
   <section class="panel" id="panel-tickets">
 
+    <div class="hero">
+      <div class="hero-icon">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5h3l1 2h4l1-2h3"/><path d="M2.8 3.2h10.4l1.3 6.3v3.1a.9.9 0 0 1-.9.9H2.4a.9.9 0 0 1-.9-.9V9.5z"/></svg>
+      </div>
+      <h2>Support tickets</h2>
+      <p>Members open a private channel with one press. Only they and your staff can see it, and a transcript is saved when it closes.</p>
+      <div class="hero-steps">
+        <span class="chip"><span class="n">1</span>Pick your channels</span>
+        <span class="chip"><span class="n">2</span>Save settings</span>
+        <span class="chip"><span class="n">3</span>Post the button</span>
+      </div>
+    </div>
+
     <div class="card">
-      <h2>Ticket system</h2>
-      <p class="desc">A support desk built into Helium. Members press a button, a private channel opens for them and your staff, and a transcript is saved when it closes.</p>
+      <h2>Where tickets live</h2>
+      <p class="desc">Choose the categories, staff role and log channel. Tap a card to select it.</p>
 
-      <div class="field">
-        <label class="lbl" for="ticket_category_id">Open tickets category</label>
-        <select id="ticket_category_id"></select>
-        <p class="help">New tickets are created here. Required.</p>
+      <div class="pick">
+        <div class="pick-head">
+          <label class="lbl">Open tickets category</label>
+          <span class="req">Required</span>
+        </div>
+        <div class="pick-grid" data-cards="ticket_category_id" data-kind="category"></div>
+        <select id="ticket_category_id" class="pick-native"></select>
       </div>
 
-      <div class="field">
-        <label class="lbl" for="ticket_archive_id">Archive category</label>
-        <select id="ticket_archive_id"></select>
-        <p class="help">Closed tickets are moved here. Leave empty to keep them in place.</p>
+      <div class="pick">
+        <div class="pick-head">
+          <label class="lbl">Archive category</label>
+        </div>
+        <div class="pick-grid" data-cards="ticket_archive_id" data-kind="category"></div>
+        <select id="ticket_archive_id" class="pick-native"></select>
       </div>
 
-      <div class="field">
-        <label class="lbl" for="ticket_staff_role_id">Staff role</label>
-        <select id="ticket_staff_role_id"></select>
-        <p class="help">Who can see, claim and close tickets. Members with Manage Server can always do this too.</p>
+      <div class="pick">
+        <div class="pick-head">
+          <label class="lbl">Staff role</label>
+        </div>
+        <div class="pick-grid" data-cards="ticket_staff_role_id" data-kind="role"></div>
+        <select id="ticket_staff_role_id" class="pick-native"></select>
       </div>
 
-      <div class="field">
-        <label class="lbl" for="ticket_log_channel_id">Transcript log channel</label>
-        <select id="ticket_log_channel_id"></select>
-        <p class="help">Where the saved conversation is posted on close.</p>
+      <div class="pick">
+        <div class="pick-head">
+          <label class="lbl">Transcript log channel</label>
+        </div>
+        <div class="pick-grid" data-cards="ticket_log_channel_id" data-kind="channel"></div>
+        <select id="ticket_log_channel_id" class="pick-native"></select>
       </div>
 
       <button class="btn btn-primary btn-block btn-lg" id="saveTickets" type="button">Save ticket settings</button>
@@ -326,9 +348,12 @@
       <h2>Post the ticket button</h2>
       <p class="desc">Drops the Open a ticket panel into a channel for your members. Save your settings above first.</p>
 
-      <div class="field">
-        <label class="lbl" for="ticket_panel_channel">Channel</label>
-        <select id="ticket_panel_channel"></select>
+      <div class="pick">
+        <div class="pick-head">
+          <label class="lbl">Channel</label>
+        </div>
+        <div class="pick-grid" data-cards="ticket_panel_channel" data-kind="channel"></div>
+        <select id="ticket_panel_channel" class="pick-native"></select>
       </div>
 
       <div class="field">
@@ -427,6 +452,65 @@
   fillSelect(document.getElementById('ticket_log_channel_id'), channels, settings.ticket_log_channel_id, 'Not set');
   fillSelect(document.getElementById('ticket_staff_role_id'), roles, settings.ticket_staff_role_id, 'Not set');
   fillSelect(document.getElementById('ticket_panel_channel'), channels, '', 'Select a channel');
+
+  // ---------- selection cards (drive the hidden ticket selects) ----------
+
+  var PICK_ICON = {
+    category: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.2h4l1.2 1.6h5.8v6.4a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8z"/></svg>',
+    channel: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5 5 13.5M11 2.5 9.5 13.5M3 6h11M2.5 10h11"/></svg>',
+    role: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.2a5 5 0 0 1 10 0"/></svg>'
+  };
+  var CHECK_ICON = '<svg class="opt-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 6.5 11.5 3 8"/></svg>';
+
+  function renderPicker(grid) {
+    var selId = grid.getAttribute('data-cards');
+    var kind = grid.getAttribute('data-kind');
+    var select = document.getElementById(selId);
+    var opts = Array.prototype.slice.call(select.options);
+
+    // real choices only (skip the empty placeholder option)
+    var choices = opts.filter(function (o) { return o.value; });
+
+    if (!choices.length) {
+      grid.innerHTML = '<div class="pick-empty">Nothing to choose yet. Create a ' + kind + ' in your server first.</div>';
+      return;
+    }
+
+    grid.innerHTML = choices.map(function (o) {
+      var on = o.value === select.value;
+      return (
+        '<button type="button" class="opt" data-val="' + esc(o.value) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+          '<span class="opt-ic">' + PICK_ICON[kind] + '</span>' +
+          '<span class="opt-body">' +
+            '<span class="opt-name">' + esc(o.textContent) + '</span>' +
+            '<span class="opt-sub">' + esc(kind) + '</span>' +
+          '</span>' +
+          CHECK_ICON +
+        '</button>'
+      );
+    }).join('');
+
+    grid.querySelectorAll('.opt').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var val = btn.getAttribute('data-val');
+        // toggle off if tapping the selected one (except required category)
+        if (select.value === val && selId !== 'ticket_category_id') {
+          select.value = '';
+        } else {
+          select.value = val;
+        }
+        grid.querySelectorAll('.opt').forEach(function (b) {
+          b.setAttribute('aria-pressed', b.getAttribute('data-val') === select.value ? 'true' : 'false');
+        });
+      });
+    });
+  }
+
+  function renderPickers() {
+    document.querySelectorAll('.pick-grid[data-cards]').forEach(renderPicker);
+  }
+
+  renderPickers();
 
   document.getElementById('welcome_enabled').checked = !!settings.welcome_enabled;
   document.getElementById('autorole_enabled').checked = !!settings.autorole_enabled;
