@@ -375,7 +375,7 @@ async function buildTranscript(channel) {
 
   const lines = all.map((m) => {
     const when = new Date(m.createdTimestamp).toISOString().replace('T', ' ').slice(0, 19);
-    const author = m.author ? m.author.tag : 'unknown';
+    const author = m.author ? (m.author.globalName || m.author.username) : 'unknown';
     let text = m.content || '';
 
     if (m.embeds && m.embeds.length) {
@@ -468,7 +468,7 @@ async function endTicket(interaction, db, mode) {
   // ---- delete path ----
   if (mode === 'delete') {
     setTimeout(() => {
-      interaction.channel.delete('Ticket deleted by ' + interaction.user.tag).catch(() => {});
+      interaction.channel.delete('Ticket deleted by ' + interaction.user.username).catch(() => {});
     }, 3000);
     return;
   }
