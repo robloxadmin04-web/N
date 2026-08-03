@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="How to use Helium: setup, settings, premium roles, redeem codes and commands.">
+<meta name="description" content="How to use Helium: setup, settings, premium roles, redeem codes, tickets and commands.">
 <title>How to use Helium</title>
 <link rel="stylesheet" href="style.css">
 <style>
@@ -388,6 +388,62 @@ kbd {
   padding: 1px 6px;
   color: var(--text);
 }
+
+/* ---------- quick start checklist ---------- */
+
+.qs {
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 6px 16px 8px;
+  margin: 0 0 20px;
+  max-width: 62ch;
+}
+
+.qs .qs-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.qs .qs-item:last-child {
+  border-bottom: none;
+}
+
+.qs .qs-n {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-hi);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.qs .qs-b {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.qs .qs-b strong {
+  color: var(--text);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 1px;
+}
+
+.qs .qs-b a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 </style>
 </head>
 <body>
@@ -403,7 +459,7 @@ kbd {
 
     <div class="title">
       <h1>How to use Helium</h1>
-      <div class="meta">Setup, settings, premium and commands</div>
+      <div class="meta">Setup, settings, premium, tickets and commands</div>
     </div>
   </div>
 </header>
@@ -413,11 +469,13 @@ kbd {
   <nav class="toc" aria-label="Sections">
     <div class="toc-list">
       <a href="#overview">Overview</a>
+      <a href="#quickstart">Quick start</a>
       <a href="#setup">First setup</a>
       <a href="#roles">Role position</a>
       <a href="#settings">Settings</a>
       <a href="#premium">Premium</a>
       <a href="#codes">Selling with codes</a>
+      <a href="#tickets">Tickets</a>
       <a href="#commands">Commands</a>
       <a href="#board">Status board</a>
       <a href="#announce">Announcements</a>
@@ -445,11 +503,43 @@ kbd {
       <ul class="bullets">
         <li><strong>Premium roles</strong> that grant and expire on their own</li>
         <li><strong>Redeem codes</strong> so buyers get access without waiting for you</li>
+        <li><strong>Support tickets</strong> with private channels, transcripts and an archive</li>
         <li><strong>Welcome messages</strong> and an automatic role for new members</li>
         <li><strong>Raid protection</strong> that screens brand new accounts</li>
         <li><strong>A status board</strong> that edits itself in place</li>
         <li><strong>Announcements</strong> posted as clean embeds</li>
       </ul>
+    </section>
+
+    <!-- ============ QUICK START ============ -->
+    <section id="quickstart">
+      <h2>Quick start</h2>
+      <p class="lead">Brand new to Helium? Do these in order. Each one is explained in full further down the page.</p>
+
+      <div class="qs">
+        <div class="qs-item">
+          <div class="qs-n">1</div>
+          <div class="qs-b"><strong>Sign in and install</strong>Log in with Discord, then press Install next to your server. <a href="#setup">First setup</a></div>
+        </div>
+        <div class="qs-item">
+          <div class="qs-n">2</div>
+          <div class="qs-b"><strong>Move the Helium role to the top</strong>Server Settings, then Roles. Drag Helium above every role it will hand out. <a href="#roles">Role position</a></div>
+        </div>
+        <div class="qs-item">
+          <div class="qs-n">3</div>
+          <div class="qs-b"><strong>Choose your channels</strong>Welcome, announcements and the status board, all in Settings. <a href="#settings">Settings</a></div>
+        </div>
+        <div class="qs-item">
+          <div class="qs-n">4</div>
+          <div class="qs-b"><strong>Set up premium</strong>Map a tier to a role, then grant or sell access. <a href="#premium">Premium</a></div>
+        </div>
+        <div class="qs-item">
+          <div class="qs-n">5</div>
+          <div class="qs-b"><strong>Turn on tickets</strong>Run one config command, then post the button. <a href="#tickets">Tickets</a></div>
+        </div>
+      </div>
+
+      <p>You do not have to use every feature. Set up only the parts your server needs and ignore the rest.</p>
     </section>
 
     <!-- ============ SETUP ============ -->
@@ -458,12 +548,20 @@ kbd {
       <p>Five minutes, done once per server.</p>
 
       <ol class="steps">
-        <li><span class="st">Sign in with Discord</span>Helium only asks for your identity and the list of servers you manage. It never reads messages.</li>
+        <li><span class="st">Sign in with Discord</span>Helium only asks for your identity and the list of servers you manage. It never reads normal chat messages.</li>
         <li><span class="st">Install Helium</span>On the servers page, press Install next to the server you want. Servers you already installed show Open instead.</li>
         <li><span class="st">Move the Helium role up</span>Server Settings, then Roles. Drag Helium above every role it will hand out. Skipping this is the single most common reason things silently fail.</li>
         <li><span class="st">Create the role you will sell</span>Any role works. Name it Premium, VIP, whatever fits your server.</li>
         <li><span class="st">Pick your channels</span>In Settings, choose where welcome messages, announcements and the status board should go.</li>
       </ol>
+
+      <div class="callout">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M8 7.4v3.6M8 5.2h.01"/></svg>
+        <div>
+          <div class="ct">Planning to use tickets too?</div>
+          <p>Tickets need one extra permission and one extra setting. The <a href="#tickets" style="color:var(--text);text-decoration:underline;text-underline-offset:2px">Tickets</a> section walks you through it, so come back to it after the basics are working.</p>
+        </div>
+      </div>
     </section>
 
     <!-- ============ ROLE POSITION ============ -->
@@ -599,6 +697,86 @@ Premium
       </ul>
     </section>
 
+    <!-- ============ TICKETS ============ -->
+    <section id="tickets">
+      <h2>Tickets</h2>
+      <p class="lead">A support system built into Helium. Members press a button, a private channel opens just for them and your staff, and everything is saved as a transcript when it closes.</p>
+
+      <div class="flow">
+        <div><span>1. Member opens</span>They press a button on a panel you posted.</div>
+        <div><span>2. Staff help</span>A private channel appears. Only that member and staff can see it.</div>
+        <div><span>3. Staff close</span>A transcript is saved and the channel is tidied away into an archive.</div>
+      </div>
+
+      <h3>Before you start, two one time steps</h3>
+      <p>Tickets create and move channels, so the bot needs one extra permission. Set both of these up once and you never touch them again.</p>
+
+      <ol class="steps">
+        <li><span class="st">Give Helium the Manage Channels permission</span>Server Settings, then Roles, then the Helium role. Turn on Manage Channels. This lets it create the private ticket channels.</li>
+        <li><span class="st">Create your ticket channels and role</span>Make a category for open tickets (for example <kbd>Tickets</kbd>), a second category for closed ones (<kbd>Archive</kbd>), a staff role for the people who answer, and a log channel where transcripts land.</li>
+      </ol>
+
+      <h3>Turn tickets on</h3>
+      <p>Run this once in any channel. Point each option at the category, role and channel you just made.</p>
+
+      <div class="cmd">
+        <code>/ticketconfig category:Tickets archive:Archive staff_role:@Staff log_channel:#ticket-logs</code>
+        <button class="copy" data-copy="/ticketconfig category:Tickets archive:Archive staff_role:@Staff log_channel:#ticket-logs"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <p>To see what is currently set at any time, run <kbd>/ticketconfig</kbd> on its own with no options.</p>
+
+      <div class="tablewrap">
+        <table class="ref">
+          <thead><tr><th>Option</th><th>What it is for</th></tr></thead>
+          <tbody>
+            <tr><td>category</td><td>Where new open tickets are created. Required.</td></tr>
+            <tr><td>archive</td><td>Where closed tickets are moved. Optional, but recommended.</td></tr>
+            <tr><td>staff_role</td><td>The role allowed to see, claim and close tickets.</td></tr>
+            <tr><td>log_channel</td><td>Where the transcript file is posted when a ticket closes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Post the button for members</h3>
+      <p>This drops a panel with an Open a ticket button into the channel you name. Pin it so members always find it.</p>
+
+      <div class="cmd">
+        <code>/ticketpanel channel:#support title:Need help? message:Click below to talk to our team</code>
+        <button class="copy" data-copy="/ticketpanel channel:#support title:Need help? message:Click below to talk to our team"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <p>The panel keeps working forever, even after the bot restarts. You only post it once.</p>
+
+      <h3>What members do</h3>
+      <p>They press <strong>Open a ticket</strong> and a private channel appears just for them. One person can only have one open ticket at a time, so they cannot flood your server.</p>
+
+      <h3>What staff do</h3>
+      <p>Three buttons live inside every ticket.</p>
+
+      <div class="tablewrap">
+        <table class="ref">
+          <thead><tr><th>Button</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>Claim</td><td>Marks you as the one handling it, so two staff do not reply at once.</td></tr>
+            <tr><td>Close</td><td>Saves the transcript, hides the ticket from the member, and moves it to your Archive category. An archived ticket still keeps a Delete button.</td></tr>
+            <tr><td>Delete</td><td>Saves the transcript first, then removes the channel completely a few seconds later.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M8 7.4v3.6M8 5.2h.01"/></svg>
+        <div>
+          <div class="ct">Close first, delete later</div>
+          <p>Close keeps a copy in the archive in case you need it again. Delete is permanent. When in doubt, close. You can always delete an archived ticket afterwards.</p>
+        </div>
+      </div>
+
+      <h3>Transcripts</h3>
+      <p>Every close or delete saves the whole conversation as a <kbd>.txt</kbd> file to your log channel, along with who opened it and who closed it. If your transcripts come out empty, the Message Content setting is off in the Discord Developer Portal under Bot, Privileged Gateway Intents.</p>
+    </section>
+
     <!-- ============ COMMANDS ============ -->
     <section id="commands">
       <h2>Commands</h2>
@@ -632,6 +810,18 @@ Premium
       <div class="cmd">
         <code>/premium revoke user:@member</code>
         <button class="copy" data-copy="/premium revoke user:@member"><span class="sr-only">Copy</span></button>
+      </div>
+
+      <h3>Tickets</h3>
+      <p>These also require the Manage Server permission.</p>
+
+      <div class="cmd">
+        <code>/ticketconfig</code>
+        <button class="copy" data-copy="/ticketconfig"><span class="sr-only">Copy</span></button>
+      </div>
+      <div class="cmd">
+        <code>/ticketpanel channel:#support</code>
+        <button class="copy" data-copy="/ticketpanel channel:#support"><span class="sr-only">Copy</span></button>
       </div>
 
       <div class="tablewrap">
@@ -678,6 +868,17 @@ Premium
         <li>Fewer than five minutes have passed since a website grant</li>
       </ul>
 
+      <h3>Tickets will not open</h3>
+      <ul class="bullets">
+        <li>Helium is missing the Manage Channels permission</li>
+        <li>No category is set yet. Run <kbd>/ticketconfig</kbd> and check the category line</li>
+        <li>The Helium role sits below the ticket channels or staff role, so it cannot edit them</li>
+        <li>The category was deleted after you configured it. Point <kbd>/ticketconfig</kbd> at a new one</li>
+      </ul>
+
+      <h3>Ticket transcripts are empty</h3>
+      <p>The Message Content Intent is off. Open the Discord Developer Portal, your app, Bot, then Privileged Gateway Intents, and turn on Message Content. Restart the bot afterwards.</p>
+
       <h3>No welcome message</h3>
       <ul class="bullets">
         <li>The toggle is off, or no channel is selected</li>
@@ -698,7 +899,7 @@ Premium
 
       <div class="qa">
         <div class="q">Can Helium read our messages?</div>
-        <div class="a">No. It never requests message content, and cannot see what anyone types.</div>
+        <div class="a">Only inside ticket channels, and only to build the transcript when a ticket closes. It does not read or store your normal server chat.</div>
       </div>
 
       <div class="qa">
@@ -719,6 +920,16 @@ Premium
       <div class="qa">
         <div class="q">Does a code expire if nobody uses it?</div>
         <div class="a">No. It stays valid until it hits its use limit or you disable it.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">How many tickets can one person open?</div>
+        <div class="a">One at a time. They have to close their current ticket before opening another, which keeps your server tidy.</div>
+      </div>
+
+      <div class="qa">
+        <div class="q">What is the difference between closing and deleting a ticket?</div>
+        <div class="a">Close saves a transcript and moves the ticket to your archive so you can still read it. Delete removes the channel for good, though a transcript is still saved to your log channel first.</div>
       </div>
 
       <div class="qa">
