@@ -261,7 +261,11 @@ const EDITABLE_SETTINGS = [
   'updates_channel_id',
   'status_channel_id',
   'raid_protection',
-  'min_account_age_days'
+  'min_account_age_days',
+  'ticket_category_id',
+  'ticket_archive_id',
+  'ticket_staff_role_id',
+  'ticket_log_channel_id'
 ];
 
 app.put('/api/guilds/:guildId/settings', requireUser, requireGuildAccess, async function (req, res) {
@@ -298,16 +302,25 @@ app.put('/api/guilds/:guildId/settings', requireUser, requireGuildAccess, async 
 // GET /api/guilds/:guildId/channels  (from the bot cache table)
 // The bot keeps guilds fresh; channels come straight from Discord
 // through the bot token so the frontend never needs one.
+// Returns text channels AND categories (categories power the
+// ticket setup dropdowns).
 // ------------------------------------------------------------
 app.get('/api/guilds/:guildId/channels', requireUser, requireGuildAccess, async function (req, res) {
   try {
     const { discordFetch } = require('./lib');
     const channels = await discordFetch('/guilds/' + req.guildId + '/channels', process.env.DISCORD_BOT_TOKEN, true);
+
     const text = channels
       .filter(function (c) { return c.type === 0 || c.type === 5; })
       .map(function (c) { return { id: c.id, name: c.name, position: c.position }; })
       .sort(function (a, b) { return a.position - b.position; });
-    res.json({ channels: text });
+
+    const categories = channels
+      .filter(function (c) { return c.type === 4; })
+      .map(function (c) { return { id: c.id, name: c.name, position: c.position }; })
+      .sort(function (a, b) { return a.position - b.position; });
+
+    res.json({ channels: text, categories: categories });
   } catch (e) {
     return bad(res, e.status || 500, e.message);
   }
@@ -525,6 +538,35 @@ app.delete('/api/guilds/:guildId/status/:entryId', requireUser, requireGuildAcce
 });
 
 // ------------------------------------------------------------
+// TICKETS  -  post the Open a ticket panel from the dashboard
+// Queues a job so the bot posts the panel in the chosen channel.
+// ------------------------------------------------------------
+app.post('/api/guilds/:guildId/ticket-panel', requireUser, requireGuildAccess, async function (req, res) {
+  const channelId = String(req.body.channel_id || '').trim();
+  if (!/^\d{15,25}$/.test(channelId)) return bad(res, 400, 'Pick a channel first');
+
+  // make sure a category is configured, otherwise the panel is useless
+  const { data: s } = await db
+    .from('guild_settings')
+    .select('ticket_category_id')
+    .eq('guild_id', req.guildId)
+    .maybeSingle();
+
+  if (!s || !s.ticket_category_id) {
+    return bad(res, 400, 'Set an open tickets category and save before posting the panel');
+  }
+
+  await enqueueJob(req.guildId, 'ticket_panel', {
+    channel_id: channelId,
+    title: req.body.title || null,
+    message: req.body.message || null
+  });
+
+  await logAudit(req.guildId, req.dashUser.discord_id, 'ticket.panel.queued', { channel_id: channelId });
+  res.json({ ok: true, queued: true });
+});
+
+// ------------------------------------------------------------
 // ANNOUNCE  -  push an update embed to the updates channel
 // ------------------------------------------------------------
 app.post('/api/guilds/:guildId/announce', requireUser, requireGuildAccess, async function (req, res) {
@@ -580,6 +622,7 @@ app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async 
   await db.from('premium_members').delete().eq('guild_id', gid);
   await db.from('premium_roles').delete().eq('guild_id', gid);
   await db.from('status_entries').delete().eq('guild_id', gid);
+  await db.from('tickets').delete().eq('guild_id', gid);
   await db.from('bot_jobs').delete().eq('guild_id', gid).neq('status', 'pending');
   await db.from('audit_log').delete().eq('guild_id', gid);
 
