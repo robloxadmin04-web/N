@@ -798,6 +798,12 @@ async function handleInteraction(interaction, db) {
       }
       return;
     }
+    if (interaction.isRoleSelectMenu && interaction.isRoleSelectMenu()) {
+      if (interaction.customId.startsWith('ticket:')) {
+        return await handleTicketButton(interaction, db);
+      }
+      return;
+    }
     if (interaction.isButton()) return await handleButton(interaction, db);
     if (interaction.isModalSubmit()) return await handleModal(interaction, db);
     if (!interaction.isChatInputCommand()) return;
