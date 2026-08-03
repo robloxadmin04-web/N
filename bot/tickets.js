@@ -24,7 +24,8 @@ const {
   ButtonStyle,
   ChannelType,
   AttachmentBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  RoleSelectMenuBuilder
 } = require('discord.js');
 
 // customId namespace for every ticket button
@@ -32,6 +33,7 @@ const TID = {
   open: 'ticket:open',        // legacy single button (still supported)
   pick: 'ticket:pick',        // string-select menu of reasons
   claim: 'ticket:claim',
+  setrole: 'ticket:setrole',  // opens a role picker for the opener
   close: 'ticket:close',      // archive on close
   delete: 'ticket:delete'     // hard delete
 };
@@ -308,6 +310,7 @@ async function openTicket(interaction, db, reasonValue) {
 
   const controls = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(TID.claim).setLabel('Claim').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(TID.setrole).setLabel('Set role').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(TID.close).setLabel('Close').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(TID.delete).setLabel('Delete').setStyle(ButtonStyle.Danger)
   );
@@ -623,6 +626,114 @@ async function handleTicketSetup(interaction, db) {
 }
 
 // ------------------------------------------------------------
+// Set role: staff opens a role picker, the chosen role is given
+// to the person who opened the ticket. Great for auto-granting a
+// buyer their role after a successful transaction.
+// ------------------------------------------------------------
+async function promptSetRole(interaction, db) {
+  const settings = await getSettings(db, interaction.guildId);
+
+  if (!(await isTicketStaff(interaction, settings))) {
+    return interaction.reply({ content: 'Only staff can set a role.', flags: MessageFlags.Ephemeral });
+  }
+
+  // make sure this is a real ticket, so we know who to give the role to
+  const { data: row } = await db
+    .from('tickets')
+    .select('opener_id')
+    .eq('guild_id', interaction.guildId)
+    .eq('channel_id', interaction.channel.id)
+    .maybeSingle();
+
+  if (!row) {
+    return interaction.reply({ content: 'This channel is not a tracked ticket.', flags: MessageFlags.Ephemeral });
+  }
+
+  const picker = new ActionRowBuilder().addComponents(
+    new RoleSelectMenuBuilder()
+      .setCustomId(TID.setrole)
+      .setPlaceholder('Pick a role to give the ticket opener')
+      .setMinValues(1)
+      .setMaxValues(1)
+  );
+
+  return interaction.reply({
+    content: 'Choose the role to give to <@' + row.opener_id + '>.',
+    components: [picker],
+    flags: MessageFlags.Ephemeral
+  });
+}
+
+async function applySetRole(interaction, db) {
+  const settings = await getSettings(db, interaction.guildId);
+
+  if (!(await isTicketStaff(interaction, settings))) {
+    return interaction.reply({ content: 'Only staff can set a role.', flags: MessageFlags.Ephemeral });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const { data: row } = await db
+    .from('tickets')
+    .select('opener_id')
+    .eq('guild_id', interaction.guildId)
+    .eq('channel_id', interaction.channel.id)
+    .maybeSingle();
+
+  if (!row) {
+    return reply(interaction, panel('Not a ticket', ['This channel is not a tracked ticket.']));
+  }
+
+  const roleId = (interaction.values && interaction.values[0]) || null;
+  if (!roleId) {
+    return reply(interaction, panel('No role chosen', ['Pick a role from the menu and try again.']));
+  }
+
+  const role = interaction.guild.roles.cache.get(roleId);
+  if (!role) {
+    return reply(interaction, panel('Role not found', ['That role no longer exists.']));
+  }
+
+  // safety: never let the picker hand out a managed/bot role or @everyone
+  if (role.managed || role.id === interaction.guild.id) {
+    return reply(interaction, panel('Cannot use that role', [
+      'That role is managed by an integration and cannot be assigned by hand.'
+    ]));
+  }
+
+  const member = await interaction.guild.members.fetch(row.opener_id).catch(() => null);
+  if (!member) {
+    return reply(interaction, panel('Member left', ['The person who opened this ticket is no longer in the server.']));
+  }
+
+  try {
+    await member.roles.add(role);
+  } catch (e) {
+    return reply(interaction, panel('Could not assign the role', [
+      'Move my role above ' + role.name + ' in Server Settings, then try again.'
+    ]));
+  }
+
+  await db.from('audit_log').insert({
+    guild_id: interaction.guildId,
+    actor_discord_id: interaction.user.id,
+    action: 'ticket.setrole',
+    detail: { channel_id: interaction.channel.id, target: row.opener_id, role_id: role.id }
+  });
+
+  // announce it in the ticket so the opener sees it too
+  await interaction.channel.send({
+    embeds: [panel('Role granted', [
+      '<@' + row.opener_id + '> was given the ' + role.name + ' role by <@' + interaction.user.id + '>.'
+    ])]
+  }).catch(() => {});
+
+  return reply(interaction, panel('Role given', [
+    '<@' + row.opener_id + '> now has ' + role.name + '.'
+  ]));
+}
+
+// ------------------------------------------------------------
 // button router, called from commands.js handleButton
 // returns true if it handled the interaction
 // ------------------------------------------------------------
@@ -638,6 +749,15 @@ async function handleTicketButton(interaction, db) {
 
   if (id === TID.open) { await openTicket(interaction, db, 'support'); return true; }
   if (id === TID.claim) { await claimTicket(interaction, db); return true; }
+  if (id === TID.setrole) {
+    // a button press opens the picker; a role-select submit applies it
+    if (interaction.isRoleSelectMenu && interaction.isRoleSelectMenu()) {
+      await applySetRole(interaction, db);
+    } else {
+      await promptSetRole(interaction, db);
+    }
+    return true;
+  }
   if (id === TID.close) { await endTicket(interaction, db, 'archive'); return true; }
   if (id === TID.delete) { await endTicket(interaction, db, 'delete'); return true; }
 
