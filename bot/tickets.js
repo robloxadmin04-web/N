@@ -23,16 +23,32 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  AttachmentBuilder
+  AttachmentBuilder,
+  StringSelectMenuBuilder
 } = require('discord.js');
 
 // customId namespace for every ticket button
 const TID = {
-  open: 'ticket:open',
+  open: 'ticket:open',        // legacy single button (still supported)
+  pick: 'ticket:pick',        // string-select menu of reasons
   claim: 'ticket:claim',
   close: 'ticket:close',      // archive on close
   delete: 'ticket:delete'     // hard delete
 };
+
+// Built-in ticket reasons. value is used in the channel name + DB;
+// label + description show in the dropdown; emoji is optional.
+const REASONS = [
+  { value: 'support',  label: 'General support', description: 'Questions or help with the server' },
+  { value: 'purchase', label: 'Purchase or premium', description: 'Buying, codes, roles or billing' },
+  { value: 'report',   label: 'Report a problem', description: 'Report a user, bug or issue' },
+  { value: 'other',    label: 'Something else', description: 'Anything not covered above' }
+];
+
+function reasonMeta(value) {
+  return REASONS.find(function (r) { return r.value === value; }) ||
+    { value: 'support', label: 'General support', description: '' };
+}
 
 // ------------------------------------------------------------
 // small local helpers (kept independent of commands.js so this
@@ -108,15 +124,17 @@ async function handleTicketPanel(interaction, db) {
     .setColor(0xffffff)
     .setFooter({ text: 'One ticket per person at a time' });
 
-  const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(TID.open)
-      .setLabel('Open a ticket')
-      .setStyle(ButtonStyle.Secondary)
+  const menu = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(TID.pick)
+      .setPlaceholder('Choose a reason to open a ticket')
+      .addOptions(REASONS.map(function (r) {
+        return { label: r.label, description: r.description, value: r.value };
+      }))
   );
 
   try {
-    await target.send({ embeds: [board], components: [buttons] });
+    await target.send({ embeds: [board], components: [menu] });
   } catch (e) {
     return reply(interaction, panel('Could not post the panel', [
       'I need View Channel, Send Messages and Embed Links in that channel.'
@@ -200,8 +218,10 @@ async function handleTicketConfig(interaction, db) {
 // ------------------------------------------------------------
 // Open a ticket (button on the public panel)
 // ------------------------------------------------------------
-async function openTicket(interaction, db) {
+async function openTicket(interaction, db, reasonValue) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const reason = reasonMeta(reasonValue);
 
   const settings = await getSettings(db, interaction.guildId);
 
@@ -261,7 +281,7 @@ async function openTicket(interaction, db) {
   let channel;
   try {
     channel = await interaction.guild.channels.create({
-      name: 'ticket-' + interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20),
+      name: reason.value + '-' + (interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 18) || 'user'),
       type: ChannelType.GuildText,
       parent: settings.ticket_category_id,
       permissionOverwrites: overwrites
@@ -276,13 +296,15 @@ async function openTicket(interaction, db) {
     guild_id: interaction.guildId,
     channel_id: channel.id,
     opener_id: interaction.user.id,
-    status: 'open'
+    status: 'open',
+    reason: reason.value
   });
 
   const welcome = new EmbedBuilder()
-    .setTitle('Ticket opened')
+    .setTitle('Ticket opened - ' + reason.label)
     .setDescription('Thanks <@' + interaction.user.id + '>, staff will be with you shortly. Describe your issue below.')
-    .setColor(0xffffff);
+    .setColor(0xffffff)
+    .addFields({ name: 'Reason', value: reason.label });
 
   const controls = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(TID.claim).setLabel('Claim').setStyle(ButtonStyle.Success),
@@ -411,7 +433,7 @@ async function endTicket(interaction, db, mode) {
 
   const { data: row } = await db
     .from('tickets')
-    .select('opener_id, status')
+    .select('opener_id, status, reason')
     .eq('guild_id', interaction.guildId)
     .eq('channel_id', interaction.channel.id)
     .maybeSingle();
@@ -445,6 +467,7 @@ async function endTicket(interaction, db, mode) {
       await logChannel.send({
         embeds: [panel(mode === 'delete' ? 'Ticket deleted' : 'Ticket closed', [
           'Channel: #' + interaction.channel.name,
+          'Reason: ' + reasonMeta(row.reason).label,
           'Opened by: <@' + row.opener_id + '>',
           'Closed by: <@' + interaction.user.id + '>'
         ])],
@@ -565,7 +588,12 @@ async function handleTicketSetup(interaction, db) {
     .setFooter({ text: 'One ticket per person at a time' });
 
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(TID.open).setLabel('Open a ticket').setStyle(ButtonStyle.Secondary)
+    new StringSelectMenuBuilder()
+      .setCustomId(TID.pick)
+      .setPlaceholder('Choose a reason to open a ticket')
+      .addOptions(REASONS.map(function (r) {
+        return { label: r.label, description: r.description, value: r.value };
+      }))
   );
 
   let posted = true;
@@ -601,7 +629,14 @@ async function handleTicketSetup(interaction, db) {
 async function handleTicketButton(interaction, db) {
   const id = interaction.customId;
 
-  if (id === TID.open) { await openTicket(interaction, db); return true; }
+  // reason dropdown on the panel
+  if (id === TID.pick) {
+    const chosen = (interaction.values && interaction.values[0]) || 'support';
+    await openTicket(interaction, db, chosen);
+    return true;
+  }
+
+  if (id === TID.open) { await openTicket(interaction, db, 'support'); return true; }
   if (id === TID.claim) { await claimTicket(interaction, db); return true; }
   if (id === TID.close) { await endTicket(interaction, db, 'archive'); return true; }
   if (id === TID.delete) { await endTicket(interaction, db, 'delete'); return true; }
