@@ -4,7 +4,7 @@
 // ============================================================
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const JOB_INTERVAL_MS = 5000;
 const PREMIUM_INTERVAL_MS = 5 * 60 * 1000;
@@ -67,7 +67,7 @@ async function renderStatusBoard(client, db, guildId) {
 
   const embed = new EmbedBuilder()
     .setTitle('Status Board')
-    .setDescription('```\n' + description.slice(0, 3800) + '\n```')
+    .setDescription('\`\`\`\n' + description.slice(0, 3800) + '\n\`\`\`')
     .setColor(working > 0 ? 0x2ecc71 : 0xe74c3c)
     .setFooter({ text: working + ' of ' + list.length + ' working' })
     .setTimestamp(new Date());
@@ -155,6 +155,35 @@ async function runJob(client, db, job) {
 
   if (job.type === 'refresh_status') {
     await renderStatusBoard(client, db, job.guild_id);
+    return;
+  }
+
+  if (job.type === 'ticket_panel') {
+    const { data: s } = await db
+      .from('guild_settings')
+      .select('ticket_category_id')
+      .eq('guild_id', job.guild_id)
+      .maybeSingle();
+
+    if (!s || !s.ticket_category_id) throw new Error('No ticket category configured');
+
+    const channel = guild.channels.cache.get(p.channel_id);
+    if (!channel) throw new Error('Panel channel not found');
+
+    const embed = new EmbedBuilder()
+      .setTitle(String(p.title || 'Need help?').slice(0, 250))
+      .setDescription(String(p.message || 'Press the button below to open a private ticket. Only you and the staff team can see it.').slice(0, 2000))
+      .setColor(0xffffff)
+      .setFooter({ text: 'One ticket per person at a time' });
+
+    const buttons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('ticket:open')
+        .setLabel('Open a ticket')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await channel.send({ embeds: [embed], components: [buttons] });
     return;
   }
 
