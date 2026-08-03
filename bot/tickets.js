@@ -103,7 +103,7 @@ async function handleTicketPanel(interaction, db) {
   const target = interaction.options.getChannel('channel') || interaction.channel;
   const title = interaction.options.getString('title') || 'Need help?';
   const message = interaction.options.getString('message') ||
-    'Press the button below to open a private ticket. Only you and the staff team can see it.';
+    'Choose a reason below to open a private ticket. Only you and the staff team can see it.';
 
   if (!target || typeof target.send !== 'function') {
     return reply(interaction, panel('Cannot post there', ['Pick a normal text channel.']));
@@ -583,7 +583,7 @@ async function handleTicketSetup(interaction, db) {
 
   const board = new EmbedBuilder()
     .setTitle('Need help?')
-    .setDescription('Press the button below to open a private ticket. Only you and the staff team can see it.')
+    .setDescription('Choose a reason below to open a private ticket. Only you and the staff team can see it.')
     .setColor(0xffffff)
     .setFooter({ text: 'One ticket per person at a time' });
 
