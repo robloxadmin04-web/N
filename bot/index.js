@@ -1,6 +1,15 @@
 // ============================================================
 // bot/index.js
 // Discord bot process. Runs alongside the API in one service.
+//
+// UPDATED for tickets: added GuildMessages + MessageContent
+// intents (needed to read history for transcripts) and the
+// Channel/Message partials. Everything else is unchanged.
+//
+// IMPORTANT: also enable MESSAGE CONTENT INTENT in the Discord
+// Developer Portal -> your app -> Bot -> Privileged Gateway
+// Intents, and re-invite the bot with the Manage Channels
+// permission so it can create/move/delete ticket channels.
 // ============================================================
 'use strict';
 
@@ -34,9 +43,15 @@ const AUTOROLE_DELAY_MS = 10000;
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,   // NEW: needed to fetch history for ticket transcripts
+    GatewayIntentBits.MessageContent   // NEW: needed to read message text for transcripts
   ],
-  partials: [Partials.GuildMember]
+  partials: [
+    Partials.GuildMember,
+    Partials.Channel,   // NEW
+    Partials.Message    // NEW
+  ]
 });
 
 // ------------------------------------------------------------
