@@ -44,6 +44,10 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5v3a1 1 0 0 0 1 1h1.8L10 13.5v-11L5.3 5.5H3.5a1 1 0 0 0-1 1z"/><path d="M12.4 5.6a3.4 3.4 0 0 1 0 4.8"/></svg>
       <span>Announce</span>
     </button>
+    <button role="tab" aria-selected="false" data-panel="tickets">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5h3l1 2h4l1-2h3"/><path d="M2.8 3.2h10.4l1.3 6.3v3.1a.9.9 0 0 1-.9.9H2.4a.9.9 0 0 1-.9-.9V9.5z"/></svg>
+      <span>Tickets</span>
+    </button>
   </div>
 
   <!-- ================= SETTINGS ================= -->
@@ -284,6 +288,64 @@
     </div>
   </section>
 
+  <!-- ================= TICKETS ================= -->
+  <section class="panel" id="panel-tickets">
+
+    <div class="card">
+      <h2>Ticket system</h2>
+      <p class="desc">A support desk built into Helium. Members press a button, a private channel opens for them and your staff, and a transcript is saved when it closes.</p>
+
+      <div class="field">
+        <label class="lbl" for="ticket_category_id">Open tickets category</label>
+        <select id="ticket_category_id"></select>
+        <p class="help">New tickets are created here. Required.</p>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="ticket_archive_id">Archive category</label>
+        <select id="ticket_archive_id"></select>
+        <p class="help">Closed tickets are moved here. Leave empty to keep them in place.</p>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="ticket_staff_role_id">Staff role</label>
+        <select id="ticket_staff_role_id"></select>
+        <p class="help">Who can see, claim and close tickets. Members with Manage Server can always do this too.</p>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="ticket_log_channel_id">Transcript log channel</label>
+        <select id="ticket_log_channel_id"></select>
+        <p class="help">Where the saved conversation is posted on close.</p>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-lg" id="saveTickets" type="button">Save ticket settings</button>
+    </div>
+
+    <div class="card">
+      <h2>Post the ticket button</h2>
+      <p class="desc">Drops the Open a ticket panel into a channel for your members. Save your settings above first.</p>
+
+      <div class="field">
+        <label class="lbl" for="ticket_panel_channel">Channel</label>
+        <select id="ticket_panel_channel"></select>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="ticket_panel_title">Title</label>
+        <input type="text" id="ticket_panel_title" placeholder="Need help?" maxlength="120">
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="ticket_panel_message">Message</label>
+        <textarea id="ticket_panel_message" placeholder="Click below to talk to our team."></textarea>
+      </div>
+
+      <button class="btn btn-outline btn-block" id="postTicketPanel" type="button">Post the button</button>
+    </div>
+
+  </section>
+
 </main>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -327,7 +389,7 @@
   });
 
   // ---------- load ----------
-  var settings, channels, roles;
+  var settings, channels, roles, categories;
 
   try {
     // The first call also warms up the permission check. Firing all
@@ -341,6 +403,7 @@
     ]);
 
     channels = loaded[0].channels || [];
+    categories = loaded[0].categories || [];
     roles = loaded[1].roles || [];
   } catch (e) {
     document.getElementById('guildMeta').textContent = 'Failed to load';
@@ -357,6 +420,13 @@
   fillSelect(document.getElementById('status_channel_id'), channels, settings.status_channel_id, 'Not set');
   fillSelect(document.getElementById('autorole_id'), roles, settings.autorole_id, 'Not set');
   fillSelect(document.getElementById('map_role'), roles, '', 'Select a role');
+
+  // ticket selects
+  fillSelect(document.getElementById('ticket_category_id'), categories, settings.ticket_category_id, 'Not set');
+  fillSelect(document.getElementById('ticket_archive_id'), categories, settings.ticket_archive_id, 'Not set');
+  fillSelect(document.getElementById('ticket_log_channel_id'), channels, settings.ticket_log_channel_id, 'Not set');
+  fillSelect(document.getElementById('ticket_staff_role_id'), roles, settings.ticket_staff_role_id, 'Not set');
+  fillSelect(document.getElementById('ticket_panel_channel'), channels, '', 'Select a channel');
 
   document.getElementById('welcome_enabled').checked = !!settings.welcome_enabled;
   document.getElementById('autorole_enabled').checked = !!settings.autorole_enabled;
@@ -388,6 +458,62 @@
         }
       });
       notify('Settings saved.');
+    } catch (e) {
+      notify(e.message, 'error');
+    }
+
+    btn.disabled = false;
+  });
+
+  // ---------- save ticket settings ----------
+  document.getElementById('saveTickets').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true;
+
+    try {
+      await api(BASE + '/settings', {
+        method: 'PUT',
+        body: {
+          ticket_category_id: document.getElementById('ticket_category_id').value || null,
+          ticket_archive_id: document.getElementById('ticket_archive_id').value || null,
+          ticket_staff_role_id: document.getElementById('ticket_staff_role_id').value || null,
+          ticket_log_channel_id: document.getElementById('ticket_log_channel_id').value || null
+        }
+      });
+      notify('Ticket settings saved.');
+    } catch (e) {
+      notify(e.message, 'error');
+    }
+
+    btn.disabled = false;
+  });
+
+  // ---------- post the ticket panel ----------
+  document.getElementById('postTicketPanel').addEventListener('click', async function () {
+    var channelId = document.getElementById('ticket_panel_channel').value;
+
+    if (!document.getElementById('ticket_category_id').value) {
+      notify('Choose an open tickets category and save first.', 'error');
+      return;
+    }
+    if (!channelId) {
+      notify('Pick a channel to post the button in.', 'error');
+      return;
+    }
+
+    var btn = this;
+    btn.disabled = true;
+
+    try {
+      await api(BASE + '/ticket-panel', {
+        method: 'POST',
+        body: {
+          channel_id: channelId,
+          title: document.getElementById('ticket_panel_title').value.trim() || null,
+          message: document.getElementById('ticket_panel_message').value.trim() || null
+        }
+      });
+      notify('Panel posted. Pin it so members can find it.');
     } catch (e) {
       notify(e.message, 'error');
     }
