@@ -2,6 +2,12 @@
 // bot/commands.js
 // Slash commands, a claim panel with buttons, and the modal
 // that lets buyers redeem without typing anything.
+//
+// UPDATED: wired in the ticket system (bot/tickets.js).
+//   - added /ticketpanel and /ticketconfig commands
+//   - ticket buttons routed through handleButton
+//   - ticket commands added to the router + staff gate
+// Nothing from the original premium/key logic was changed.
 // ============================================================
 'use strict';
 
@@ -19,6 +25,13 @@ const {
   TextInputStyle
 } = require('discord.js');
 
+// NEW: ticket system
+const {
+  handleTicketPanel,
+  handleTicketConfig,
+  handleTicketButton
+} = require('./tickets');
+
 // No O, 0, I or 1 so codes cannot be misread.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -30,7 +43,7 @@ const ID = {
   getkey: 'helium:getkey'
 };
 
-// Option types: 1 subcommand, 3 string, 4 integer, 6 user, 7 channel
+// Option types: 1 subcommand, 3 string, 4 integer, 6 user, 7 channel, 8 role
 const COMMANDS = [
   {
     name: 'redeem',
@@ -102,6 +115,29 @@ const COMMANDS = [
         description: 'List codes that can still be used (staff only)',
         type: 1
       }
+    ]
+  },
+
+  // ---------------------------------------------------------
+  // NEW: ticket commands
+  // ---------------------------------------------------------
+  {
+    name: 'ticketpanel',
+    description: 'Post a ticket panel with an Open button (staff only)',
+    options: [
+      { name: 'channel', description: 'Where to post it, defaults to here', type: 7, required: false },
+      { name: 'title', description: 'Heading shown on the panel', type: 3, required: false },
+      { name: 'message', description: 'Text shown under the heading', type: 3, required: false }
+    ]
+  },
+  {
+    name: 'ticketconfig',
+    description: 'Set up the ticket system (staff only). Run with no options to view current settings.',
+    options: [
+      { name: 'category', description: 'Category where open tickets are created', type: 7, required: false },
+      { name: 'archive', description: 'Category where closed tickets are moved', type: 7, required: false },
+      { name: 'staff_role', description: 'Role that can see, claim and close tickets', type: 8, required: false },
+      { name: 'log_channel', description: 'Channel where transcripts are posted', type: 7, required: false }
     ]
   }
 ];
@@ -689,6 +725,12 @@ async function handleGetKey(interaction, db) {
 // panel buttons
 // ------------------------------------------------------------
 async function handleButton(interaction, db) {
+  // NEW: ticket buttons first. Returns true if it handled it.
+  if (interaction.customId.startsWith('ticket:')) {
+    const handled = await handleTicketButton(interaction, db);
+    if (handled) return;
+  }
+
   if (interaction.customId === ID.redeem) {
     const field = new TextInputBuilder()
       .setCustomId(ID.field)
@@ -749,7 +791,12 @@ async function handleInteraction(interaction, db) {
     const name = interaction.commandName;
     const sub = name === 'premium' ? interaction.options.getSubcommand() : null;
     const staffOnly = ['grant', 'revoke', 'code', 'codes'];
-    const needsStaff = name === 'panel' || name === 'keypanel' || (sub && staffOnly.includes(sub));
+    const needsStaff =
+      name === 'panel' ||
+      name === 'keypanel' ||
+      name === 'ticketpanel' ||   // NEW
+      name === 'ticketconfig' ||  // NEW
+      (sub && staffOnly.includes(sub));
 
     if (needsStaff && !isStaff(interaction)) {
       return interaction.reply({
@@ -765,6 +812,8 @@ async function handleInteraction(interaction, db) {
     }
     if (name === 'panel') return await handlePanel(interaction, db);
     if (name === 'keypanel') return await handleKeyPanel(interaction, db);
+    if (name === 'ticketpanel') return await handleTicketPanel(interaction, db);   // NEW
+    if (name === 'ticketconfig') return await handleTicketConfig(interaction, db); // NEW
     if (sub === 'status') return await showStatus(interaction, db);
     if (sub === 'grant') return await handleGrant(interaction, db);
     if (sub === 'revoke') return await handleRevoke(interaction, db);
