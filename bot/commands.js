@@ -29,6 +29,7 @@ const {
 const {
   handleTicketPanel,
   handleTicketConfig,
+  handleTicketSetup,
   handleTicketButton
 } = require('./tickets');
 
@@ -138,6 +139,13 @@ const COMMANDS = [
       { name: 'archive', description: 'Category where closed tickets are moved', type: 7, required: false },
       { name: 'staff_role', description: 'Role that can see, claim and close tickets', type: 8, required: false },
       { name: 'log_channel', description: 'Channel where transcripts are posted', type: 7, required: false }
+    ]
+  },
+  {
+    name: 'ticketsetup',
+    description: 'One tap ticket setup: creates everything and posts the button (staff only)',
+    options: [
+      { name: 'staff_role', description: 'Role that can handle tickets. Optional.', type: 8, required: false }
     ]
   }
 ];
@@ -794,8 +802,9 @@ async function handleInteraction(interaction, db) {
     const needsStaff =
       name === 'panel' ||
       name === 'keypanel' ||
-      name === 'ticketpanel' ||   // NEW
-      name === 'ticketconfig' ||  // NEW
+      name === 'ticketpanel' ||
+      name === 'ticketconfig' ||
+      name === 'ticketsetup' ||   // NEW
       (sub && staffOnly.includes(sub));
 
     if (needsStaff && !isStaff(interaction)) {
@@ -812,8 +821,9 @@ async function handleInteraction(interaction, db) {
     }
     if (name === 'panel') return await handlePanel(interaction, db);
     if (name === 'keypanel') return await handleKeyPanel(interaction, db);
-    if (name === 'ticketpanel') return await handleTicketPanel(interaction, db);   // NEW
-    if (name === 'ticketconfig') return await handleTicketConfig(interaction, db); // NEW
+    if (name === 'ticketpanel') return await handleTicketPanel(interaction, db);
+    if (name === 'ticketconfig') return await handleTicketConfig(interaction, db);
+    if (name === 'ticketsetup') return await handleTicketSetup(interaction, db);   // NEW
     if (sub === 'status') return await showStatus(interaction, db);
     if (sub === 'grant') return await handleGrant(interaction, db);
     if (sub === 'revoke') return await handleRevoke(interaction, db);
