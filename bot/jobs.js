@@ -4,12 +4,20 @@
 // ============================================================
 'use strict';
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 
 const JOB_INTERVAL_MS = 5000;
 const PREMIUM_INTERVAL_MS = 5 * 60 * 1000;
 const RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
+
+// Built-in ticket reasons. Must match bot/tickets.js.
+const REASONS = [
+  { value: 'support',  label: 'General support', description: 'Questions or help with the server' },
+  { value: 'purchase', label: 'Purchase or premium', description: 'Buying, codes, roles or billing' },
+  { value: 'report',   label: 'Report a problem', description: 'Report a user, bug or issue' },
+  { value: 'other',    label: 'Something else', description: 'Anything not covered above' }
+];
 
 const STATE_LABEL = {
   working: 'WORKING',
@@ -176,14 +184,16 @@ async function runJob(client, db, job) {
       .setColor(0xffffff)
       .setFooter({ text: 'One ticket per person at a time' });
 
-    const buttons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('ticket:open')
-        .setLabel('Open a ticket')
-        .setStyle(ButtonStyle.Secondary)
+    const menu = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('ticket:pick')
+        .setPlaceholder('Choose a reason to open a ticket')
+        .addOptions(REASONS.map(function (r) {
+          return { label: r.label, description: r.description, value: r.value };
+        }))
     );
 
-    await channel.send({ embeds: [embed], components: [buttons] });
+    await channel.send({ embeds: [embed], components: [menu] });
     return;
   }
 
