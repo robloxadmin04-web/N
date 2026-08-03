@@ -503,6 +503,98 @@ async function endTicket(interaction, db, mode) {
 }
 
 // ------------------------------------------------------------
+// /ticketsetup  -  one tap. Creates everything and posts the panel.
+// ------------------------------------------------------------
+async function handleTicketSetup(interaction, db) {
+  const role = interaction.options.getRole('staff_role'); // optional
+  const g = interaction.guild;
+
+  async function ensureCategory(name) {
+    const existing = g.channels.cache.find(function (c) {
+      return c.type === ChannelType.GuildCategory && c.name.toLowerCase() === name.toLowerCase();
+    });
+    if (existing) return existing;
+    return g.channels.create({ name: name, type: ChannelType.GuildCategory });
+  }
+
+  let openCat, archiveCat, logChannel;
+
+  try {
+    openCat = await ensureCategory('Tickets');
+    archiveCat = await ensureCategory('Ticket Archive');
+
+    logChannel = g.channels.cache.find(function (c) {
+      return c.type === ChannelType.GuildText && c.name.toLowerCase() === 'ticket-logs';
+    });
+
+    if (!logChannel) {
+      const overwrites = [
+        { id: g.id, deny: [PermissionsBitField.Flags.ViewChannel] }
+      ];
+      if (role) {
+        overwrites.push({ id: role.id, allow: [PermissionsBitField.Flags.ViewChannel] });
+      }
+      logChannel = await g.channels.create({
+        name: 'ticket-logs',
+        type: ChannelType.GuildText,
+        parent: archiveCat.id,
+        permissionOverwrites: overwrites
+      });
+    }
+  } catch (e) {
+    return reply(interaction, panel('Setup could not finish', [
+      'I need the Manage Channels permission to create the categories and log channel.',
+      'Give me that permission, then run /ticketsetup again.'
+    ]));
+  }
+
+  const patch = {
+    guild_id: interaction.guildId,
+    ticket_category_id: openCat.id,
+    ticket_archive_id: archiveCat.id,
+    ticket_log_channel_id: logChannel.id
+  };
+  if (role) patch.ticket_staff_role_id = role.id;
+
+  await db.from('guild_settings').upsert(patch, { onConflict: 'guild_id' });
+
+  const board = new EmbedBuilder()
+    .setTitle('Need help?')
+    .setDescription('Press the button below to open a private ticket. Only you and the staff team can see it.')
+    .setColor(0xffffff)
+    .setFooter({ text: 'One ticket per person at a time' });
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(TID.open).setLabel('Open a ticket').setStyle(ButtonStyle.Secondary)
+  );
+
+  let posted = true;
+  try {
+    await interaction.channel.send({ embeds: [board], components: [buttons] });
+  } catch (e) {
+    posted = false;
+  }
+
+  await db.from('audit_log').insert({
+    guild_id: interaction.guildId,
+    actor_discord_id: interaction.user.id,
+    action: 'ticket.setup',
+    detail: { open: openCat.id, archive: archiveCat.id, log: logChannel.id, role: role ? role.id : null }
+  });
+
+  return reply(interaction, panel('Tickets are ready', [
+    'Created the Tickets and Ticket Archive categories and a ticket-logs channel.',
+    role ? 'Staff role set to ' + role.name + '.' : 'Anyone with Manage Server can handle tickets.',
+    '',
+    posted
+      ? 'Posted the Open a ticket button in this channel. Pin it so members can find it.'
+      : 'Could not post the panel here. Run /ticketpanel in a channel I can post in.',
+    '',
+    'Change any of this later from the dashboard or with /ticketconfig.'
+  ]));
+}
+
+// ------------------------------------------------------------
 // button router, called from commands.js handleButton
 // returns true if it handled the interaction
 // ------------------------------------------------------------
@@ -521,5 +613,6 @@ module.exports = {
   TID,
   handleTicketPanel,
   handleTicketConfig,
+  handleTicketSetup,
   handleTicketButton
 };
