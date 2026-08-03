@@ -180,7 +180,7 @@ async function runJob(client, db, job) {
 
     const embed = new EmbedBuilder()
       .setTitle(String(p.title || 'Need help?').slice(0, 250))
-      .setDescription(String(p.message || 'Press the button below to open a private ticket. Only you and the staff team can see it.').slice(0, 2000))
+      .setDescription(String(p.message || 'Choose a reason below to open a private ticket. Only you and the staff team can see it.').slice(0, 2000))
       .setColor(0xffffff)
       .setFooter({ text: 'One ticket per person at a time' });
 
