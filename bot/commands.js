@@ -124,7 +124,7 @@ const COMMANDS = [
   // ---------------------------------------------------------
   {
     name: 'ticketpanel',
-    description: 'Post a ticket panel with an Open button (staff only)',
+    description: 'Post a ticket panel with a reason menu (staff only)',
     options: [
       { name: 'channel', description: 'Where to post it, defaults to here', type: 7, required: false },
       { name: 'title', description: 'Heading shown on the panel', type: 3, required: false },
@@ -143,7 +143,7 @@ const COMMANDS = [
   },
   {
     name: 'ticketsetup',
-    description: 'One tap ticket setup: creates everything and posts the button (staff only)',
+    description: 'One tap ticket setup: creates everything and posts the ticket menu (staff only)',
     options: [
       { name: 'staff_role', description: 'Role that can handle tickets. Optional.', type: 8, required: false }
     ]
@@ -459,7 +459,7 @@ async function handleGrant(interaction, db) {
   });
 
   return reply(interaction, panel('Premium granted', [
-    user.tag + ' now has ' + tier + '.',
+    user.username + ' now has ' + tier + '.',
     'Valid until ' + fmt(result.expires) + '.',
     result.extended ? 'Existing time was added to, not replaced.' : '',
     '',
@@ -488,8 +488,8 @@ async function handleRevoke(interaction, db) {
   if (!rows || rows.length === 0) {
     return reply(interaction, panel('Nothing to revoke', [
       tier
-        ? user.tag + ' does not have the ' + tier + ' tier.'
-        : user.tag + ' has no premium access here.'
+        ? user.username + ' does not have the ' + tier + ' tier.'
+        : user.username + ' has no premium access here.'
     ]));
   }
 
@@ -538,8 +538,8 @@ async function handleRevoke(interaction, db) {
 
   return reply(interaction, panel('Premium revoked', [
     tier
-      ? user.tag + ' lost the ' + tier + ' tier.'
-      : user.tag + ' lost all premium access.',
+      ? user.username + ' lost the ' + tier + ' tier.'
+      : user.username + ' lost all premium access.',
     '',
     removed.length ? 'Roles removed: ' + removed.join(', ') : 'No roles needed removing.',
     failed.length ? 'Could not remove: ' + failed.join(', ') + '. Check my role position.' : ''
@@ -703,7 +703,7 @@ async function handleGetKey(interaction, db) {
 
   const { error } = await db.from('access_keys').insert({
     key: key,
-    label: interaction.user.tag,
+    label: interaction.user.username,
     guild_id: interaction.guildId,
     claimed_by: interaction.user.id,
     claimed_at: new Date().toISOString(),
