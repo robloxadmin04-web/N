@@ -119,16 +119,18 @@ async function getSettings(guildId) {
 // ------------------------------------------------------------
 
 function fillTemplate(text, member) {
-  const userMention = member.user
-    ? member.user.toString()
-    : '<@' + member.id + '>';
+  const displayName =
+    member.displayName ||
+    (member.user && member.user.displayName) ||
+    (member.user && member.user.username) ||
+    'Unknown User';
 
-  const username = member.user
-    ? member.user.username
-    : 'Unknown User';
+  const username =
+    (member.user && member.user.username) ||
+    displayName;
 
   return String(text || '')
-    .split('{user}').join(userMention)
+    .split('{user}').join(displayName)
     .split('{username}').join(username)
     .split('{server}').join(member.guild.name)
     .split('{count}').join(String(member.guild.memberCount));
@@ -319,31 +321,37 @@ client.on(Events.GuildMemberAdd, async function (member) {
     // welcome message
     // --------------------------------------------------------
 
-    // welcome message
-if (s.welcome_enabled && s.welcome_channel_id) {
-  const channel = member.guild.channels.cache.get(s.welcome_channel_id);
-
-  if (channel) {
-    const welcomeMessage = fillTemplate(s.welcome_message, member);
-
-    const embed = new EmbedBuilder()
-      .setDescription(welcomeMessage)
-      .setColor(0xffffff)
-      .setThumbnail(member.user.displayAvatarURL())
-      .setFooter({ text: 'Member ' + member.guild.memberCount });
-
-    channel.send({
-      embeds: [embed],
-      allowedMentions: {
-        users: [member.id]
-      }
-    }).catch(function (e) {
-      console.error(
-        'Welcome message failed for ' + member.user.tag + ': ' + e.message
+    if (s.welcome_enabled && s.welcome_channel_id) {
+      const channel = member.guild.channels.cache.get(
+        s.welcome_channel_id
       );
-    });
-  }
-}
+
+      if (channel) {
+        const welcomeMessage = fillTemplate(
+          s.welcome_message,
+          member
+        );
+
+        const embed = new EmbedBuilder()
+          .setDescription(welcomeMessage)
+          .setColor(0xffffff)
+          .setThumbnail(member.user.displayAvatarURL())
+          .setFooter({
+            text: 'Member ' + member.guild.memberCount
+          });
+
+        channel.send({
+          embeds: [embed]
+        }).catch(function (e) {
+          console.error(
+            'Welcome message failed for ' +
+              member.user.tag +
+              ': ' +
+              e.message
+          );
+        });
+      }
+    }
 
     await db
       .from('guilds')
