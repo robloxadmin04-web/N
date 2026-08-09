@@ -119,15 +119,19 @@ async function getSettings(guildId) {
 // ------------------------------------------------------------
 
 function fillTemplate(text, member) {
+  const userMention = member.user
+    ? member.user.toString()
+    : '<@' + member.id + '>';
+
+  const username = member.user
+    ? member.user.username
+    : 'Unknown User';
+
   return String(text || '')
-    .split('{user}')
-    .join(member.displayName || member.user.displayName || member.user.username)
-    .split('{username}')
-    .join(member.user.username)
-    .split('{server}')
-    .join(member.guild.name)
-    .split('{count}')
-    .join(String(member.guild.memberCount));
+    .split('{user}').join(userMention)
+    .split('{username}').join(username)
+    .split('{server}').join(member.guild.name)
+    .split('{count}').join(String(member.guild.memberCount));
 }
 
 async function sendLog(guild, text) {
