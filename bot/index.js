@@ -22,19 +22,33 @@ const {
 } = require('discord.js');
 
 const { createClient } = require('@supabase/supabase-js');
-const { startJobLoop, startPremiumSync, startReconcile, renderStatusBoard } = require('./jobs');
-const { handleInteraction, registerCommands } = require('./commands');
+const {
+  startJobLoop,
+  startPremiumSync,
+  startReconcile,
+  renderStatusBoard
+} = require('./jobs');
+
+const {
+  handleInteraction,
+  registerCommands
+} = require('./commands');
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!DISCORD_BOT_TOKEN || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing DISCORD_BOT_TOKEN, SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  throw new Error(
+    'Missing DISCORD_BOT_TOKEN, SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'
+  );
 }
 
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false }
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
 });
 
 // How long to wait before handing a new member the auto role.
@@ -44,19 +58,20 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,   // NEW: needed to fetch history for ticket transcripts
-    GatewayIntentBits.MessageContent   // NEW: needed to read message text for transcripts
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ],
   partials: [
     Partials.GuildMember,
-    Partials.Channel,   // NEW
-    Partials.Message    // NEW
+    Partials.Channel,
+    Partials.Message
   ]
 });
 
 // ------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------
+
 async function upsertGuild(guild) {
   await db.from('guilds').upsert(
     {
@@ -72,7 +87,13 @@ async function upsertGuild(guild) {
 
   await db
     .from('guild_settings')
-    .upsert({ guild_id: guild.id }, { onConflict: 'guild_id', ignoreDuplicates: true });
+    .upsert(
+      { guild_id: guild.id },
+      {
+        onConflict: 'guild_id',
+        ignoreDuplicates: true
+      }
+    );
 }
 
 async function getSettings(guildId) {
@@ -81,22 +102,41 @@ async function getSettings(guildId) {
     .select('*')
     .eq('guild_id', guildId)
     .maybeSingle();
+
   return data;
 }
 
+// ------------------------------------------------------------
+// FIXED:
+// {user} now uses the member's Discord Display Name
+// instead of showing <@DISCORD_ID>
+//
+// Available placeholders:
+// {user}     = Display Name
+// {username} = Discord username
+// {server}   = Server name
+// {count}    = Member count
+// ------------------------------------------------------------
+
 function fillTemplate(text, member) {
   return String(text || '')
-    .split('{user}').join('<@' + member.id + '>')
-    .split('{username}').join(member.user.username)
-    .split('{server}').join(member.guild.name)
-    .split('{count}').join(String(member.guild.memberCount));
+    .split('{user}')
+    .join(member.displayName || member.user.displayName || member.user.username)
+    .split('{username}')
+    .join(member.user.username)
+    .split('{server}')
+    .join(member.guild.name)
+    .split('{count}')
+    .join(String(member.guild.memberCount));
 }
 
 async function sendLog(guild, text) {
   const s = await getSettings(guild.id);
+
   if (!s || !s.log_channel_id) return;
 
   const channel = guild.channels.cache.get(s.log_channel_id);
+
   if (!channel) return;
 
   channel.send({ content: text }).catch(function () {});
@@ -105,15 +145,27 @@ async function sendLog(guild, text) {
 // ------------------------------------------------------------
 // ready
 // ------------------------------------------------------------
+
 client.once(Events.ClientReady, async function (c) {
-  console.log('Bot online as ' + c.user.tag + ' in ' + c.guilds.cache.size + ' guilds');
+  console.log(
+    'Bot online as ' +
+      c.user.tag +
+      ' in ' +
+      c.guilds.cache.size +
+      ' guilds'
+  );
 
   for (const guild of c.guilds.cache.values()) {
     try {
       await upsertGuild(guild);
       await registerCommands(guild);
     } catch (e) {
-      console.error('Startup failed for ' + guild.id + ': ' + e.message);
+      console.error(
+        'Startup failed for ' +
+          guild.id +
+          ': ' +
+          e.message
+      );
     }
   }
 
@@ -125,6 +177,7 @@ client.once(Events.ClientReady, async function (c) {
 // ------------------------------------------------------------
 // slash commands
 // ------------------------------------------------------------
+
 client.on(Events.InteractionCreate, function (interaction) {
   handleInteraction(interaction, db).catch(function (e) {
     console.error('Interaction error: ' + e.message);
@@ -134,8 +187,16 @@ client.on(Events.InteractionCreate, function (interaction) {
 // ------------------------------------------------------------
 // joined a new server
 // ------------------------------------------------------------
+
 client.on(Events.GuildCreate, async function (guild) {
-  console.log('Joined guild ' + guild.name + ' (' + guild.id + ')');
+  console.log(
+    'Joined guild ' +
+      guild.name +
+      ' (' +
+      guild.id +
+      ')'
+  );
+
   await upsertGuild(guild);
   await registerCommands(guild);
 });
@@ -143,28 +204,45 @@ client.on(Events.GuildCreate, async function (guild) {
 // ------------------------------------------------------------
 // removed from a server
 // ------------------------------------------------------------
+
 client.on(Events.GuildDelete, async function (guild) {
   console.log('Left guild ' + guild.id);
-  await db.from('guilds').update({ active: false }).eq('id', guild.id);
+
+  await db
+    .from('guilds')
+    .update({ active: false })
+    .eq('id', guild.id);
 });
 
 // ------------------------------------------------------------
 // member joined
 // ------------------------------------------------------------
+
 client.on(Events.GuildMemberAdd, async function (member) {
   try {
     const s = await getSettings(member.guild.id);
+
     if (!s) return;
 
     // raid protection: hold very new accounts
-    if (s.raid_protection && s.min_account_age_days > 0) {
-      const ageDays = (Date.now() - member.user.createdTimestamp) / 86400000;
+    if (
+      s.raid_protection &&
+      s.min_account_age_days > 0
+    ) {
+      const ageDays =
+        (Date.now() - member.user.createdTimestamp) /
+        86400000;
 
       if (ageDays < s.min_account_age_days) {
         await sendLog(
           member.guild,
-          'Held new account ' + member.user.tag + ' (age ' + ageDays.toFixed(1) + ' days)'
+          'Held new account ' +
+            member.user.tag +
+            ' (age ' +
+            ageDays.toFixed(1) +
+            ' days)'
         );
+
         return;
       }
     }
@@ -172,14 +250,27 @@ client.on(Events.GuildMemberAdd, async function (member) {
     // autorole, on a short delay
     // setTimeout instead of await so the welcome message below
     // still posts the moment they join
-    if (s.autorole_enabled && s.autorole_id) {
-      const role = member.guild.roles.cache.get(s.autorole_id);
+    if (
+      s.autorole_enabled &&
+      s.autorole_id
+    ) {
+      const role =
+        member.guild.roles.cache.get(
+          s.autorole_id
+        );
 
       if (role) {
         setTimeout(function () {
-          member.roles.add(role).catch(function (e) {
-            console.error('Autorole failed for ' + member.user.tag + ': ' + e.message);
-          });
+          member.roles
+            .add(role)
+            .catch(function (e) {
+              console.error(
+                'Autorole failed for ' +
+                  member.user.tag +
+                  ': ' +
+                  e.message
+              );
+            });
         }, AUTOROLE_DELAY_MS);
       }
     }
@@ -192,7 +283,13 @@ client.on(Events.GuildMemberAdd, async function (member) {
       .eq('discord_id', member.id)
       .maybeSingle();
 
-    if (prem && (!prem.expires_at || new Date(prem.expires_at) > new Date())) {
+    if (
+      prem &&
+      (
+        !prem.expires_at ||
+        new Date(prem.expires_at) > new Date()
+      )
+    ) {
       const { data: map } = await db
         .from('premium_roles')
         .select('role_id')
@@ -201,58 +298,118 @@ client.on(Events.GuildMemberAdd, async function (member) {
         .maybeSingle();
 
       if (map) {
-        const role = member.guild.roles.cache.get(map.role_id);
-        if (role) await member.roles.add(role).catch(function () {});
+        const role =
+          member.guild.roles.cache.get(
+            map.role_id
+          );
+
+        if (role) {
+          await member.roles
+            .add(role)
+            .catch(function () {});
+        }
       }
     }
 
+    // --------------------------------------------------------
     // welcome message
-    if (s.welcome_enabled && s.welcome_channel_id) {
-      const channel = member.guild.channels.cache.get(s.welcome_channel_id);
+    // --------------------------------------------------------
+
+    if (
+      s.welcome_enabled &&
+      s.welcome_channel_id
+    ) {
+      const channel =
+        member.guild.channels.cache.get(
+          s.welcome_channel_id
+        );
 
       if (channel) {
         const embed = new EmbedBuilder()
-          .setDescription(fillTemplate(s.welcome_message, member))
+          .setDescription(
+            fillTemplate(
+              s.welcome_message,
+              member
+            )
+          )
           .setColor(0xffffff)
-          .setThumbnail(member.user.displayAvatarURL())
-          .setFooter({ text: 'Member ' + member.guild.memberCount });
+          .setThumbnail(
+            member.user.displayAvatarURL()
+          )
+          .setFooter({
+            text:
+              'Member ' +
+              member.guild.memberCount
+          });
 
-        channel.send({ embeds: [embed] }).catch(function () {});
+        channel
+          .send({
+            embeds: [embed]
+          })
+          .catch(function () {});
       }
     }
 
     await db
       .from('guilds')
-      .update({ member_count: member.guild.memberCount })
+      .update({
+        member_count:
+          member.guild.memberCount
+      })
       .eq('id', member.guild.id);
+
   } catch (e) {
-    console.error('GuildMemberAdd failed: ' + e.message);
+    console.error(
+      'GuildMemberAdd failed: ' +
+        e.message
+    );
   }
 });
 
 // ------------------------------------------------------------
 // member left
 // ------------------------------------------------------------
-client.on(Events.GuildMemberRemove, async function (member) {
-  await db
-    .from('guilds')
-    .update({ member_count: member.guild.memberCount })
-    .eq('id', member.guild.id);
-});
+
+client.on(
+  Events.GuildMemberRemove,
+  async function (member) {
+    await db
+      .from('guilds')
+      .update({
+        member_count:
+          member.guild.memberCount
+      })
+      .eq('id', member.guild.id);
+  }
+);
 
 // ------------------------------------------------------------
 // shutdown
 // ------------------------------------------------------------
+
 process.on('SIGTERM', function () {
-  console.log('SIGTERM received, closing');
+  console.log(
+    'SIGTERM received, closing'
+  );
+
   client.destroy();
   process.exit(0);
 });
 
-process.on('unhandledRejection', function (reason) {
-  console.error('Unhandled rejection:', reason);
-});
+process.on(
+  'unhandledRejection',
+  function (reason) {
+    console.error(
+      'Unhandled rejection:',
+      reason
+    );
+  }
+);
 
 client.login(DISCORD_BOT_TOKEN);
 
-module.exports = { client, db, renderStatusBoard };
+module.exports = {
+  client,
+  db,
+  renderStatusBoard
+};
