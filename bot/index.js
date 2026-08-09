@@ -319,40 +319,31 @@ client.on(Events.GuildMemberAdd, async function (member) {
     // welcome message
     // --------------------------------------------------------
 
-    if (
-      s.welcome_enabled &&
-      s.welcome_channel_id
-    ) {
-      const channel =
-        member.guild.channels.cache.get(
-          s.welcome_channel_id
-        );
+    // welcome message
+if (s.welcome_enabled && s.welcome_channel_id) {
+  const channel = member.guild.channels.cache.get(s.welcome_channel_id);
 
-      if (channel) {
-        const embed = new EmbedBuilder()
-          .setDescription(
-            fillTemplate(
-              s.welcome_message,
-              member
-            )
-          )
-          .setColor(0xffffff)
-          .setThumbnail(
-            member.user.displayAvatarURL()
-          )
-          .setFooter({
-            text:
-              'Member ' +
-              member.guild.memberCount
-          });
+  if (channel) {
+    const welcomeMessage = fillTemplate(s.welcome_message, member);
 
-        channel
-          .send({
-            embeds: [embed]
-          })
-          .catch(function () {});
+    const embed = new EmbedBuilder()
+      .setDescription(welcomeMessage)
+      .setColor(0xffffff)
+      .setThumbnail(member.user.displayAvatarURL())
+      .setFooter({ text: 'Member ' + member.guild.memberCount });
+
+    channel.send({
+      embeds: [embed],
+      allowedMentions: {
+        users: [member.id]
       }
-    }
+    }).catch(function (e) {
+      console.error(
+        'Welcome message failed for ' + member.user.tag + ': ' + e.message
+      );
+    });
+  }
+}
 
     await db
       .from('guilds')
