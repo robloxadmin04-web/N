@@ -698,15 +698,22 @@ app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async 
 // AUDIT LOG
 // ------------------------------------------------------------
 app.get('/api/guilds/:guildId/audit', requireUser, requireGuildAccess, async function (req, res) {
-  const { data, error } = await db
+  const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit  || '50', 10)));
+  const offset = Math.max(0,              parseInt(req.query.offset || '0',  10));
+  const action = req.query.action ? String(req.query.action).trim() : null;
+
+  let q = db
     .from('audit_log')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('guild_id', req.guildId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
+  if (action) q = q.eq('action', action);
+
+  const { data, error, count } = await q;
   if (error) return bad(res, 500, error.message);
-  res.json({ entries: data || [] });
+  res.json({ entries: data || [], total: count || 0, limit, offset });
 });
 
 // ------------------------------------------------------------
