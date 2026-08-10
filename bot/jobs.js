@@ -20,17 +20,24 @@ const REASONS = [
 ];
 
 const STATE_LABEL = {
-  working: 'WORKING',
-  patched: 'PATCHED',
+  working:     'WORKING',
+  patched:     'PATCHED',
   maintenance: 'MAINTENANCE',
-  unknown: 'UNKNOWN'
+  unknown:     'UNKNOWN'
+};
+
+const STATE_EMOJI = {
+  working:     'ðŸŸ¢',
+  patched:     'ðŸ”´',
+  maintenance: 'ðŸŸ¡',
+  unknown:     'âš«'
 };
 
 const STATE_COLOR = {
-  working: 0x2ecc71,
-  patched: 0xe74c3c,
+  working:     0x2ecc71,
+  patched:     0xe74c3c,
   maintenance: 0xf1c40f,
-  unknown: 0x95a5a6
+  unknown:     0x95a5a6
 };
 
 // ------------------------------------------------------------
@@ -59,25 +66,57 @@ async function renderStatusBoard(client, db, guildId) {
 
   const list = entries || [];
 
-  let description = 'No entries yet.';
-  if (list.length > 0) {
-    description = list
-      .map(function (e) {
-        const label = STATE_LABEL[e.state] || 'UNKNOWN';
-        const game = e.game_name ? ' - ' + e.game_name : '';
-        const note = e.note ? '\n     ' + e.note : '';
-        return '[' + label + '] ' + e.title + game + note;
-      })
-      .join('\n');
+  // â”€â”€ count per state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const counts = { working: 0, patched: 0, maintenance: 0, unknown: 0 };
+  list.forEach(function (e) {
+    const s = e.state in counts ? e.state : 'unknown';
+    counts[s]++;
+  });
+
+  const working = counts.working;
+
+  // â”€â”€ overall status line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let overallLine;
+  if (list.length === 0) {
+    overallLine = 'âš«  No entries yet.';
+  } else if (counts.patched > 0 || counts.maintenance > 0) {
+    overallLine = 'ðŸ”´  **Some exploits are down**';
+  } else {
+    overallLine = 'ðŸŸ¢  **All exploits operational**';
   }
 
-  const working = list.filter(function (e) { return e.state === 'working'; }).length;
+  // â”€â”€ per-entry lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let description = overallLine + '\n\u200b';
+  if (list.length > 0) {
+    const entryLines = list.map(function (e) {
+      const emoji = STATE_EMOJI[e.state] || 'âš«';
+      const label = STATE_LABEL[e.state] || 'UNKNOWN';
+      const game  = e.game_name ? ' Â· ' + e.game_name : '';
+      const note  = e.note      ? '\n> -# ' + e.note  : '';
+      return emoji + ' **' + e.title + '**' + game + '  `' + label + '`' + note;
+    });
+    description += '\n' + entryLines.join('\n\n');
+  }
+
+  // â”€â”€ summary footer text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const parts = [];
+  if (counts.working     > 0) parts.push(counts.working     + ' working');
+  if (counts.patched     > 0) parts.push(counts.patched     + ' patched');
+  if (counts.maintenance > 0) parts.push(counts.maintenance + ' maintenance');
+  if (counts.unknown     > 0) parts.push(counts.unknown     + ' unknown');
+  const footerText = parts.length ? parts.join(' Â· ') : 'No entries';
+
+  // â”€â”€ embed color: green = all working, yellow = maintenance, red = patched
+  let boardColor = 0x2ecc71;
+  if (counts.patched     > 0)                       boardColor = 0xe74c3c;
+  if (counts.maintenance > 0 && counts.patched === 0) boardColor = 0xf1c40f;
+  if (list.length        === 0)                     boardColor = 0x95a5a6;
 
   const embed = new EmbedBuilder()
-    .setTitle('Status Board')
-    .setDescription('\`\`\`\n' + description.slice(0, 3800) + '\n\`\`\`')
-    .setColor(working > 0 ? 0x2ecc71 : 0xe74c3c)
-    .setFooter({ text: working + ' of ' + list.length + ' working' })
+    .setTitle('ðŸ“‹  Exploit Status Board')
+    .setDescription(description.slice(0, 4000))
+    .setColor(boardColor)
+    .setFooter({ text: footerText })
     .setTimestamp(new Date());
 
   if (settings.status_message_id) {
