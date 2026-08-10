@@ -354,6 +354,39 @@
       <button class="btn btn-primary btn-block btn-lg" id="saveTickets" type="button">Save ticket settings</button>
     </div>
 
+    <!-- Ticket Reasons -->
+    <div class="card">
+      <h2>Ticket Reasons</h2>
+      <p class="desc">Customize the reasons shown in the ticket dropdown. Max 5. Defaults to the built-in 4 if none are set.</p>
+
+      <div class="divider"></div>
+
+      <div id="reasonsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        <div style="text-align:center;color:var(--text-faint);padding:20px;font-size:14px;">Loading…</div>
+      </div>
+
+      <div id="reasonForm" style="display:none;flex-direction:column;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
+        <div class="field" style="margin:0;">
+          <label class="lbl" for="reasonLabel">Label <span style="color:var(--text-faint);font-size:12px;">(shown in Discord)</span></label>
+          <input type="text" id="reasonLabel" placeholder="e.g. General support" maxlength="100">
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="lbl" for="reasonValue">Value <span style="color:var(--text-faint);font-size:12px;">(unique id, lowercase letters/numbers)</span></label>
+          <input type="text" id="reasonValue" placeholder="e.g. general_support" maxlength="50">
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="lbl" for="reasonDesc">Description <span style="color:var(--text-faint);font-size:12px;">(optional, shown under label)</span></label>
+          <input type="text" id="reasonDesc" placeholder="e.g. Questions or help with the server" maxlength="100">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="saveReasonBtn" type="button" style="flex:1;">Add Reason</button>
+          <button class="btn btn-outline" id="cancelReasonBtn" type="button">Cancel</button>
+        </div>
+      </div>
+
+      <button class="btn btn-outline btn-block" id="addReasonBtn" type="button">+ Add Reason</button>
+    </div>
+
     <div class="card">
       <h2>Post the ticket button</h2>
       <p class="desc">Drops the Open a ticket panel into a channel for your members. Save your settings above first.</p>
@@ -923,6 +956,114 @@
   loadMappings();
   loadPremium();
   loadStatus();
+
+  // ── Ticket Reasons ────────────────────────────────────────
+  var reasonsCache = [];
+
+  function renderReasons(list) {
+    var el = document.getElementById('reasonsList');
+    if (!list.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:16px;font-size:13px;">No custom reasons — using defaults.</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (r) {
+      return [
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;',
+        'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);',
+        'padding:10px 14px;">',
+        '<div>',
+        '<div style="font-weight:500;font-size:14px;">' + esc(r.label) + '</div>',
+        r.description ? '<div style="font-size:12px;color:var(--text-dim);">' + esc(r.description) + '</div>' : '',
+        '<div style="font-size:11px;color:var(--text-faint);font-family:ui-monospace,monospace;">' + esc(r.value) + '</div>',
+        '</div>',
+        '<button class="btn btn-outline" data-reason-id="' + esc(String(r.id)) + '" ',
+        'style="padding:5px 12px;font-size:12px;color:var(--red,#f87171);border-color:var(--red,#f87171);">Delete</button>',
+        '</div>'
+      ].join('');
+    }).join('');
+
+    // bind delete buttons
+    el.querySelectorAll('[data-reason-id]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = btn.getAttribute('data-reason-id');
+        if (!confirm('Delete this reason?')) return;
+        try {
+          await api(BASE + '/ticket-reasons/' + id, { method: 'DELETE' });
+          await loadReasonsUI();
+        } catch (e) { notify(e.message, 'error'); }
+      });
+    });
+  }
+
+  async function loadReasonsUI() {
+    try {
+      var data = await api(BASE + '/ticket-reasons');
+      reasonsCache = data.reasons || [];
+      renderReasons(reasonsCache);
+      // hide add button if at max
+      document.getElementById('addReasonBtn').style.display =
+        reasonsCache.length >= 5 ? 'none' : '';
+    } catch (e) {
+      document.getElementById('reasonsList').innerHTML =
+        '<div style="text-align:center;color:var(--text-faint);padding:16px;font-size:13px;">Failed to load reasons.</div>';
+    }
+  }
+
+  document.getElementById('addReasonBtn').addEventListener('click', function () {
+    document.getElementById('reasonForm').style.display = 'flex';
+    document.getElementById('addReasonBtn').style.display = 'none';
+    document.getElementById('reasonLabel').value = '';
+    document.getElementById('reasonValue').value = '';
+    document.getElementById('reasonDesc').value  = '';
+    document.getElementById('reasonLabel').focus();
+  });
+
+  document.getElementById('cancelReasonBtn').addEventListener('click', function () {
+    document.getElementById('reasonForm').style.display = 'none';
+    if (reasonsCache.length < 5) document.getElementById('addReasonBtn').style.display = '';
+  });
+
+  // Auto-generate value from label
+  document.getElementById('reasonLabel').addEventListener('input', function () {
+    var val = document.getElementById('reasonValue').value;
+    // only auto-fill if user hasn't typed their own value
+    if (!val || val === document.getElementById('reasonLabel').dataset.lastAuto) {
+      var auto = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50);
+      document.getElementById('reasonValue').value = auto;
+      document.getElementById('reasonLabel').dataset.lastAuto = auto;
+    }
+  });
+
+  document.getElementById('saveReasonBtn').addEventListener('click', async function () {
+    var label = document.getElementById('reasonLabel').value.trim();
+    var value = document.getElementById('reasonValue').value.trim();
+    var desc  = document.getElementById('reasonDesc').value.trim();
+
+    if (!label) { notify('Label is required', 'error'); return; }
+    if (!value) { notify('Value is required', 'error'); return; }
+
+    try {
+      document.getElementById('saveReasonBtn').disabled = true;
+      await api(BASE + '/ticket-reasons', {
+        method: 'POST',
+        body: { label: label, value: value, description: desc || null, position: reasonsCache.length }
+      });
+      document.getElementById('reasonForm').style.display = 'none';
+      notify('Reason added');
+      await loadReasonsUI();
+    } catch (e) {
+      notify(e.message, 'error');
+    } finally {
+      document.getElementById('saveReasonBtn').disabled = false;
+    }
+  });
+
+  // Load reasons when tickets tab is opened
+  document.querySelectorAll('.tabs button[data-panel="tickets"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!reasonsCache.length) loadReasonsUI();
+    });
+  });
 
   // ── Audit Log ─────────────────────────────────────────────
   var AUDIT_LIMIT  = 50;
