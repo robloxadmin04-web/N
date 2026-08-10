@@ -148,7 +148,7 @@ async function handleTicketPanel(interaction, db) {
       .setCustomId(TID.pick)
       .setPlaceholder('Choose a reason to open a ticket')
       .addOptions(reasons.map(function (r) {
-        return { label: r.label, description: r.description || '', value: r.value };
+        var opt = { label: r.label, value: r.value }; if (r.description) opt.description = r.description; return opt;
       }))
   );
 
@@ -617,7 +617,7 @@ async function handleTicketSetup(interaction, db) {
       .setCustomId(TID.pick)
       .setPlaceholder('Choose a reason to open a ticket')
       .addOptions(setupReasons.map(function (r) {
-        return { label: r.label, description: r.description || '', value: r.value };
+        var opt = { label: r.label, value: r.value }; if (r.description) opt.description = r.description; return opt;
       }))
   );
 
