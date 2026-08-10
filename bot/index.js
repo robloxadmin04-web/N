@@ -108,29 +108,27 @@ async function getSettings(guildId) {
 
 // ------------------------------------------------------------
 // FIXED:
-// {user} now uses the member's Discord Display Name
-// instead of showing <@DISCORD_ID>
+// {user} is kept as a real Discord user mention.
+// It is sent in normal message content so Discord
+// reliably renders @username instead of raw <@DISCORD_ID>.
 //
 // Available placeholders:
-// {user}     = Display Name
+// {user}     = Discord user mention
 // {username} = Discord username
 // {server}   = Server name
 // {count}    = Member count
 // ------------------------------------------------------------
 
 function fillTemplate(text, member) {
-  const displayName =
-    member.displayName ||
-    (member.user && member.user.displayName) ||
-    (member.user && member.user.username) ||
-    'Unknown User';
+  const userMention = '<@' + member.id + '>';
 
   const username =
     (member.user && member.user.username) ||
-    displayName;
+    member.displayName ||
+    'Unknown User';
 
   return String(text || '')
-    .split('{user}').join(displayName)
+    .split('{user}').join(userMention)
     .split('{username}').join(username)
     .split('{server}').join(member.guild.name)
     .split('{count}').join(String(member.guild.memberCount));
@@ -332,16 +330,29 @@ client.on(Events.GuildMemberAdd, async function (member) {
           member
         );
 
+        // Send the line containing {user} as normal message content.
+        // Discord reliably renders <@USER_ID> as @username here.
+        const lines = welcomeMessage.split(/\r?\n/);
+        const mentionLine = lines.shift() || '';
+        const embedDescription = lines.join('\n').trim();
+
         const embed = new EmbedBuilder()
-          .setDescription(welcomeMessage)
           .setColor(0xffffff)
           .setThumbnail(member.user.displayAvatarURL())
           .setFooter({
             text: 'Member ' + member.guild.memberCount
           });
 
+        if (embedDescription) {
+          embed.setDescription(embedDescription);
+        }
+
         channel.send({
-          embeds: [embed]
+          content: mentionLine,
+          embeds: [embed],
+          allowedMentions: {
+            users: [member.id]
+          }
         }).catch(function (e) {
           console.error(
             'Welcome message failed for ' +
