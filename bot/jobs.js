@@ -27,10 +27,10 @@ const STATE_LABEL = {
 };
 
 const STATE_EMOJI = {
-  working:     'ðŸŸ¢',
-  patched:     'ðŸ”´',
-  maintenance: 'ðŸŸ¡',
-  unknown:     'âš«'
+  working:     '🟢',
+  patched:     '🔴',
+  maintenance: '🟡',
+  unknown:     '⚫'
 };
 
 const STATE_COLOR = {
@@ -66,7 +66,7 @@ async function renderStatusBoard(client, db, guildId) {
 
   const list = entries || [];
 
-  // â”€â”€ count per state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── count per state ─────────────────────────────────────────
   const counts = { working: 0, patched: 0, maintenance: 0, unknown: 0 };
   list.forEach(function (e) {
     const s = e.state in counts ? e.state : 'unknown';
@@ -75,45 +75,45 @@ async function renderStatusBoard(client, db, guildId) {
 
   const working = counts.working;
 
-  // â”€â”€ overall status line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── overall status line ──────────────────────────────────────
   let overallLine;
   if (list.length === 0) {
-    overallLine = 'âš«  No entries yet.';
+    overallLine = '⚫  No entries yet.';
   } else if (counts.patched > 0 || counts.maintenance > 0) {
-    overallLine = 'ðŸ”´  **Some exploits are down**';
+    overallLine = '🔴  **Some exploits are down**';
   } else {
-    overallLine = 'ðŸŸ¢  **All exploits operational**';
+    overallLine = '🟢  **All exploits operational**';
   }
 
-  // â”€â”€ per-entry lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── per-entry lines ──────────────────────────────────────────
   let description = overallLine + '\n\u200b';
   if (list.length > 0) {
     const entryLines = list.map(function (e) {
-      const emoji = STATE_EMOJI[e.state] || 'âš«';
+      const emoji = STATE_EMOJI[e.state] || '⚫';
       const label = STATE_LABEL[e.state] || 'UNKNOWN';
-      const game  = e.game_name ? ' Â· ' + e.game_name : '';
+      const game  = e.game_name ? ' · ' + e.game_name : '';
       const note  = e.note      ? '\n> -# ' + e.note  : '';
       return emoji + ' **' + e.title + '**' + game + '  `' + label + '`' + note;
     });
     description += '\n' + entryLines.join('\n\n');
   }
 
-  // â”€â”€ summary footer text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── summary footer text ──────────────────────────────────────
   const parts = [];
   if (counts.working     > 0) parts.push(counts.working     + ' working');
   if (counts.patched     > 0) parts.push(counts.patched     + ' patched');
   if (counts.maintenance > 0) parts.push(counts.maintenance + ' maintenance');
   if (counts.unknown     > 0) parts.push(counts.unknown     + ' unknown');
-  const footerText = parts.length ? parts.join(' Â· ') : 'No entries';
+  const footerText = parts.length ? parts.join(' · ') : 'No entries';
 
-  // â”€â”€ embed color: green = all working, yellow = maintenance, red = patched
+  // ── embed color: green = all working, yellow = maintenance, red = patched
   let boardColor = 0x2ecc71;
   if (counts.patched     > 0)                       boardColor = 0xe74c3c;
   if (counts.maintenance > 0 && counts.patched === 0) boardColor = 0xf1c40f;
   if (list.length        === 0)                     boardColor = 0x95a5a6;
 
   const embed = new EmbedBuilder()
-    .setTitle('ðŸ“‹  Exploit Status Board')
+    .setTitle('📋  Exploit Status Board')
     .setDescription(description.slice(0, 4000))
     .setColor(boardColor)
     .setFooter({ text: footerText })
@@ -280,6 +280,38 @@ function startJobLoop(client, db) {
             })
             .eq('id', job.id);
           console.error('Job ' + job.id + ' (' + job.type + ') failed: ' + e.message);
+
+          // Alert the log channel when a job permanently fails so
+          // the server owner knows without having to check the DB.
+          if (failed) {
+            try {
+              const { data: s } = await db
+                .from('guild_settings')
+                .select('log_channel_id')
+                .eq('guild_id', job.guild_id)
+                .maybeSingle();
+
+              if (s && s.log_channel_id) {
+                const guild = client.guilds.cache.get(job.guild_id);
+                const logCh = guild && guild.channels.cache.get(s.log_channel_id);
+                if (logCh) {
+                  const alertEmbed = new EmbedBuilder()
+                    .setTitle('⚠️ Background Job Failed')
+                    .setColor(0xe74c3c)
+                    .setDescription(
+                      '**Type:** `' + job.type + '`\n' +
+                      '**Job ID:** `' + job.id + '`\n' +
+                      '**Error:** ' + e.message.slice(0, 300)
+                    )
+                    .setFooter({ text: 'Check your bot settings or role hierarchy.' })
+                    .setTimestamp(new Date());
+                  logCh.send({ embeds: [alertEmbed] }).catch(function () {});
+                }
+              }
+            } catch (alertErr) {
+              console.error('Failed to send job failure alert: ' + alertErr.message);
+            }
+          }
         }
       }
     } catch (e) {
