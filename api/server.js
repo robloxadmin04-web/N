@@ -647,6 +647,88 @@ app.post('/api/guilds/:guildId/announce', requireUser, requireGuildAccess, async
 });
 
 // ------------------------------------------------------------
+// TICKET REASONS  -  GET / POST / PATCH / DELETE
+// ------------------------------------------------------------
+
+// GET all reasons for a guild
+app.get('/api/guilds/:guildId/ticket-reasons', requireUser, requireGuildAccess, async function (req, res) {
+  const { data, error } = await db
+    .from('ticket_reasons')
+    .select('*')
+    .eq('guild_id', req.guildId)
+    .order('position', { ascending: true });
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ reasons: data || [] });
+});
+
+// POST add a new reason (max 5)
+app.post('/api/guilds/:guildId/ticket-reasons', requireUser, requireGuildAccess, async function (req, res) {
+  const { data: existing } = await db
+    .from('ticket_reasons')
+    .select('id')
+    .eq('guild_id', req.guildId);
+
+  if (existing && existing.length >= 5) {
+    return bad(res, 400, 'Maximum of 5 reasons allowed.');
+  }
+
+  const label       = String(req.body.label       || '').trim().slice(0, 100);
+  const description = String(req.body.description || '').trim().slice(0, 100) || null;
+  const value       = String(req.body.value       || '').trim()
+    .toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 50);
+  const position    = Math.max(0, Math.min(4, parseInt(req.body.position || (existing ? existing.length : 0), 10)));
+
+  if (!label) return bad(res, 400, 'Label is required.');
+  if (!value) return bad(res, 400, 'Value is required and must be alphanumeric.');
+
+  const { data, error } = await db
+    .from('ticket_reasons')
+    .insert({ guild_id: req.guildId, label, description, value, position })
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+  await logAudit(req.guildId, req.dashUser.discord_id, 'ticket.reasons.add', { value });
+  res.json({ reason: data });
+});
+
+// PATCH update a reason
+app.patch('/api/guilds/:guildId/ticket-reasons/:reasonId', requireUser, requireGuildAccess, async function (req, res) {
+  const patch = {};
+  if (req.body.label       !== undefined) patch.label       = String(req.body.label).trim().slice(0, 100);
+  if (req.body.description !== undefined) patch.description = String(req.body.description).trim().slice(0, 100) || null;
+  if (req.body.position    !== undefined) patch.position    = Math.max(0, Math.min(4, parseInt(req.body.position, 10)));
+
+  if (patch.label !== undefined && !patch.label) return bad(res, 400, 'Label cannot be empty.');
+  if (Object.keys(patch).length === 0) return bad(res, 400, 'Nothing to update.');
+
+  const { data, error } = await db
+    .from('ticket_reasons')
+    .update(patch)
+    .eq('id', req.params.reasonId)
+    .eq('guild_id', req.guildId)
+    .select()
+    .single();
+
+  if (error) return bad(res, 500, error.message);
+  res.json({ reason: data });
+});
+
+// DELETE a reason
+app.delete('/api/guilds/:guildId/ticket-reasons/:reasonId', requireUser, requireGuildAccess, async function (req, res) {
+  const { error } = await db
+    .from('ticket_reasons')
+    .delete()
+    .eq('id', req.params.reasonId)
+    .eq('guild_id', req.guildId);
+
+  if (error) return bad(res, 500, error.message);
+  await logAudit(req.guildId, req.dashUser.discord_id, 'ticket.reasons.delete', { id: req.params.reasonId });
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
 // RESET  -  erase every Helium record for this guild
 // ------------------------------------------------------------
 app.delete('/api/guilds/:guildId/reset', requireUser, requireGuildAccess, async function (req, res) {
