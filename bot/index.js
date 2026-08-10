@@ -26,6 +26,7 @@ const {
   startJobLoop,
   startPremiumSync,
   startReconcile,
+  startTicketRoleExpiry,
   renderStatusBoard
 } = require('./jobs');
 
@@ -176,6 +177,7 @@ client.once(Events.ClientReady, async function (c) {
   startJobLoop(client, db);
   startPremiumSync(client, db);
   startReconcile(client, db);
+  startTicketRoleExpiry(client, db);
 });
 
 // ------------------------------------------------------------
