@@ -664,7 +664,69 @@ async function promptSetRole(interaction, db) {
   });
 }
 
+// Duration options shown after the role is picked.
+const DURATION_OPTIONS = [
+  { label: '1 day',   value: '1'  },
+  { label: '3 days',  value: '3'  },
+  { label: '7 days',  value: '7'  },
+  { label: '30 days', value: '30' }
+];
+
+// Step 1 — staff picked a role from the RoleSelectMenu.
+// Show duration picker before actually assigning.
 async function applySetRole(interaction, db) {
+  const settings = await getSettings(db, interaction.guildId);
+
+  if (!(await isTicketStaff(interaction, settings))) {
+    return interaction.reply({ content: 'Only staff can set a role.', flags: MessageFlags.Ephemeral });
+  }
+
+  const { data: row } = await db
+    .from('tickets')
+    .select('opener_id')
+    .eq('guild_id', interaction.guildId)
+    .eq('channel_id', interaction.channel.id)
+    .maybeSingle();
+
+  if (!row) {
+    return interaction.reply({ content: 'This channel is not a tracked ticket.', flags: MessageFlags.Ephemeral });
+  }
+
+  const roleId = (interaction.values && interaction.values[0]) || null;
+  if (!roleId) {
+    return interaction.reply({ content: 'No role chosen.', flags: MessageFlags.Ephemeral });
+  }
+
+  const role = interaction.guild.roles.cache.get(roleId);
+  if (!role) {
+    return interaction.reply({ content: 'That role no longer exists.', flags: MessageFlags.Ephemeral });
+  }
+
+  if (role.managed || role.id === interaction.guild.id) {
+    return interaction.reply({
+      content: 'That role is managed by an integration and cannot be assigned by hand.',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  // Encode the chosen roleId in the customId so Step 2 can read it.
+  // Format: ticket:duration:<roleId>
+  const durationMenu = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('ticket:duration:' + roleId)
+      .setPlaceholder('How long should the role last?')
+      .addOptions(DURATION_OPTIONS)
+  );
+
+  return interaction.reply({
+    content: 'How long should <@' + row.opener_id + '> keep the **' + role.name + '** role?',
+    components: [durationMenu],
+    flags: MessageFlags.Ephemeral
+  });
+}
+
+// Step 2 — staff picked a duration. Assign the role and record expiry.
+async function applySetRoleWithDuration(interaction, db, roleId, days) {
   const settings = await getSettings(db, interaction.guildId);
 
   if (!(await isTicketStaff(interaction, settings))) {
@@ -684,21 +746,9 @@ async function applySetRole(interaction, db) {
     return reply(interaction, panel('Not a ticket', ['This channel is not a tracked ticket.']));
   }
 
-  const roleId = (interaction.values && interaction.values[0]) || null;
-  if (!roleId) {
-    return reply(interaction, panel('No role chosen', ['Pick a role from the menu and try again.']));
-  }
-
   const role = interaction.guild.roles.cache.get(roleId);
   if (!role) {
     return reply(interaction, panel('Role not found', ['That role no longer exists.']));
-  }
-
-  // safety: never let the picker hand out a managed/bot role or @everyone
-  if (role.managed || role.id === interaction.guild.id) {
-    return reply(interaction, panel('Cannot use that role', [
-      'That role is managed by an integration and cannot be assigned by hand.'
-    ]));
   }
 
   const member = await interaction.guild.members.fetch(row.opener_id).catch(() => null);
@@ -714,22 +764,51 @@ async function applySetRole(interaction, db) {
     ]));
   }
 
+  const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+
+  // Record the grant so the expiry job can clean it up.
+  await db.from('ticket_role_grants').upsert(
+    {
+      guild_id:   interaction.guildId,
+      discord_id: row.opener_id,
+      role_id:    roleId,
+      expires_at: expiresAt,
+      granted_by: interaction.user.id,
+      channel_id: interaction.channel.id
+    },
+    { onConflict: 'guild_id,discord_id,role_id' }
+  );
+
   await db.from('audit_log').insert({
-    guild_id: interaction.guildId,
+    guild_id:         interaction.guildId,
     actor_discord_id: interaction.user.id,
-    action: 'ticket.setrole',
-    detail: { channel_id: interaction.channel.id, target: row.opener_id, role_id: role.id }
+    action:           'ticket.setrole',
+    detail: {
+      channel_id: interaction.channel.id,
+      target:     row.opener_id,
+      role_id:    roleId,
+      days:       days,
+      expires_at: expiresAt
+    }
   });
 
-  // announce it in the ticket so the opener sees it too
+  const expireDate = new Date(expiresAt).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  });
+
+  // Announce in the ticket so the opener sees it.
   await interaction.channel.send({
     embeds: [panel('Role granted', [
-      '<@' + row.opener_id + '> was given the ' + role.name + ' role by <@' + interaction.user.id + '>.'
+      '<@' + row.opener_id + '> was given the **' + role.name + '** role.',
+      'Granted by <@' + interaction.user.id + '>.',
+      'Expires: **' + expireDate + '** (' + days + ' day' + (days > 1 ? 's' : '') + ').'
     ])]
   }).catch(() => {});
 
   return reply(interaction, panel('Role given', [
-    '<@' + row.opener_id + '> now has ' + role.name + '.'
+    '<@' + row.opener_id + '> now has ' + role.name + '.',
+    'It will be removed automatically on ' + expireDate + '.',
+    'They will be DM\'d when it expires.'
   ]));
 }
 
@@ -740,6 +819,14 @@ async function applySetRole(interaction, db) {
 async function handleTicketButton(interaction, db) {
   const id = interaction.customId;
 
+  // Duration select: ticket:duration:<roleId>
+  if (id.startsWith('ticket:duration:')) {
+    const roleId = id.slice('ticket:duration:'.length);
+    const days   = parseInt((interaction.values && interaction.values[0]) || '1', 10);
+    await applySetRoleWithDuration(interaction, db, roleId, days);
+    return true;
+  }
+
   // reason dropdown on the panel
   if (id === TID.pick) {
     const chosen = (interaction.values && interaction.values[0]) || 'support';
@@ -747,10 +834,9 @@ async function handleTicketButton(interaction, db) {
     return true;
   }
 
-  if (id === TID.open) { await openTicket(interaction, db, 'support'); return true; }
+  if (id === TID.open)  { await openTicket(interaction, db, 'support'); return true; }
   if (id === TID.claim) { await claimTicket(interaction, db); return true; }
   if (id === TID.setrole) {
-    // a button press opens the picker; a role-select submit applies it
     if (interaction.isRoleSelectMenu && interaction.isRoleSelectMenu()) {
       await applySetRole(interaction, db);
     } else {
@@ -758,8 +844,8 @@ async function handleTicketButton(interaction, db) {
     }
     return true;
   }
-  if (id === TID.close) { await endTicket(interaction, db, 'archive'); return true; }
-  if (id === TID.delete) { await endTicket(interaction, db, 'delete'); return true; }
+  if (id === TID.close)  { await endTicket(interaction, db, 'archive'); return true; }
+  if (id === TID.delete) { await endTicket(interaction, db, 'delete');  return true; }
 
   return false;
 }
