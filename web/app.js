@@ -287,7 +287,7 @@ function botInviteUrl(guildId) {
     'https://discord.com/oauth2/authorize' +
     '?client_id=' + encodeURIComponent(CONFIG.DISCORD_CLIENT_ID) +
     '&scope=bot%20applications.commands' +
-    '&permissions=268520448';
+    '&permissions=2416003088';
 
   if (guildId) url += '&guild_id=' + encodeURIComponent(guildId);
   return url;
