@@ -183,6 +183,25 @@ function isStaff(interaction) {
   return interaction.memberPermissions.has(PermissionsBitField.Flags.ManageGuild);
 }
 
+// Check that the bot itself has the permissions it needs before
+// attempting an action. Returns null if okay, or an error string.
+function botCanManageRoles(guild) {
+  const me = guild.members.me;
+  if (!me) return 'I am not in this server.';
+  if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+    return 'I am missing the **Manage Roles** permission. Please grant it in Server Settings.';
+  }
+  return null;
+}
+
+function botRoleIsAbove(guild, roleId) {
+  const me = guild.members.me;
+  if (!me) return false;
+  const role = guild.roles.cache.get(roleId);
+  if (!role) return false;
+  return me.roles.highest.position > role.position;
+}
+
 function panel(title, lines) {
   return new EmbedBuilder()
     .setTitle(title)
@@ -444,9 +463,27 @@ async function handlePanel(interaction, db) {
 // /premium grant
 // ------------------------------------------------------------
 async function handleGrant(interaction, db) {
+  const permErr = botCanManageRoles(interaction.guild);
+  if (permErr) return reply(interaction, panel('Missing permission', [permErr]));
+
   const user = interaction.options.getUser('user');
   const days = interaction.options.getInteger('days');
   const tier = (interaction.options.getString('tier') || 'basic').trim();
+
+  // Check bot role is above the target role in the hierarchy.
+  const { data: map } = await db
+    .from('premium_roles')
+    .select('role_id')
+    .eq('guild_id', interaction.guildId)
+    .eq('tier', tier)
+    .maybeSingle();
+
+  if (map && !botRoleIsAbove(interaction.guild, map.role_id)) {
+    return reply(interaction, panel('Role hierarchy error', [
+      'My role must be **above** the premium role in Server Settings → Roles.',
+      'Move the bot\'s role higher, then try again.'
+    ]));
+  }
 
   const result = await upsertMember(db, interaction.guildId, user.id, tier, days, 'command');
   const applied = await applyRole(db, interaction.guild, user.id, tier);
@@ -471,6 +508,9 @@ async function handleGrant(interaction, db) {
 // /premium revoke
 // ------------------------------------------------------------
 async function handleRevoke(interaction, db) {
+  const permErr = botCanManageRoles(interaction.guild);
+  if (permErr) return reply(interaction, panel('Missing permission', [permErr]));
+
   const user = interaction.options.getUser('user');
   const only = interaction.options.getString('tier');
   const tier = only ? only.trim() : null;
