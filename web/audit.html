@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Audit Log - Helium</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .filter-bar select,
+  .filter-bar input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px;
+    font-size: 14px;
+    min-width: 160px;
+  }
+  .filter-bar select:focus,
+  .filter-bar input:focus {
+    outline: none;
+    border-color: var(--border-hi);
+  }
+  .filter-bar .btn-sm {
+    padding: 7px 16px;
+    font-size: 14px;
+  }
+
+  .audit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .audit-row {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 12px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+  .audit-row + .audit-row {
+    margin-top: 6px;
+  }
+  .audit-action {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--surface-3);
+    border-radius: 5px;
+    padding: 2px 7px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+  .audit-action[data-kind="grant"]    { color: #4ade80; }
+  .audit-action[data-kind="revoke"]   { color: #f87171; }
+  .audit-action[data-kind="settings"] { color: #60a5fa; }
+  .audit-action[data-kind="reset"]    { color: #f97316; }
+  .audit-action[data-kind="access"]   { color: #a78bfa; }
+  .audit-action[data-kind="announce"] { color: #facc15; }
+
+  .audit-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .audit-actor {
+    font-weight: 500;
+    color: var(--text);
+  }
+  .audit-detail {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: ui-monospace, monospace;
+    word-break: break-all;
+  }
+  .audit-time {
+    font-size: 12px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .audit-empty {
+    text-align: center;
+    color: var(--text-faint);
+    padding: 48px 0;
+    font-size: 14px;
+  }
+
+  .pagination {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 20px;
+    align-items: center;
+  }
+  .pagination .btn-sm {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+  .pagination .page-info {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .loading-row {
+    text-align: center;
+    color: var(--text-faint);
+    padding: 32px;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="iconbtn" id="backBtn" href="server.html" title="Back to server">
+      <span class="sr-only">Back</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 3.5 5.5 8l4.5 4.5"/>
+      </svg>
+    </a>
+    <div class="title">
+      <h1 id="guildName">Audit Log</h1>
+      <div class="meta" id="guildMeta">Action history for this server</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="card">
+    <h2>Activity Log</h2>
+    <p class="desc">Every action taken through the dashboard or bot commands, newest first.</p>
+
+    <div class="divider"></div>
+
+    <div class="filter-bar">
+      <select id="actionFilter">
+        <option value="">All actions</option>
+        <option value="premium.grant">Premium grant</option>
+        <option value="premium.revoke">Premium revoke</option>
+        <option value="premium.purchase">Premium purchase</option>
+        <option value="settings.update">Settings update</option>
+        <option value="announce.queued">Announce</option>
+        <option value="ticket.panel.queued">Ticket panel</option>
+        <option value="accesskey.bind">Key bind</option>
+        <option value="accesskey.create">Key create</option>
+        <option value="accesskey.delete">Key delete</option>
+        <option value="server.reset">Server reset</option>
+      </select>
+      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+    </div>
+
+    <div id="auditList" class="audit-list">
+      <div class="loading-row">Loading…</div>
+    </div>
+
+    <div class="pagination" id="pagination" style="display:none">
+      <button class="btn btn-sm" id="prevBtn" type="button" disabled>← Prev</button>
+      <span class="page-info" id="pageInfo"></span>
+      <button class="btn btn-sm" id="nextBtn" type="button">Next →</button>
+    </div>
+  </div>
+</main>
+
+<script>
+'use strict';
+
+const API   = window.API_BASE || '';
+const LIMIT = 50;
+
+let guildId = null;
+let offset  = 0;
+let total   = 0;
+
+// ── helpers ─────────────────────────────────────────────────
+function getToken() { return localStorage.getItem('helium_token') || ''; }
+function getDiscordToken() { return localStorage.getItem('helium_discord_token') || ''; }
+
+function headers() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + getToken(),
+    'x-discord-token': getDiscordToken()
+  };
+}
+
+function qs(id) { return document.getElementById(id); }
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function actionKind(action) {
+  if (!action) return '';
+  if (action.startsWith('premium.grant') || action.startsWith('premium.purchase')) return 'grant';
+  if (action.startsWith('premium.revoke')) return 'revoke';
+  if (action.startsWith('settings'))       return 'settings';
+  if (action.startsWith('server.reset'))   return 'reset';
+  if (action.startsWith('access'))         return 'access';
+  if (action.startsWith('announce'))       return 'announce';
+  return '';
+}
+
+function fmtDetail(detail) {
+  if (!detail || typeof detail !== 'object') return '';
+  const parts = [];
+  const SHOW = ['target', 'tier', 'days', 'title', 'channel_id', 'role_id', 'keys', 'key', 'label'];
+  for (const k of SHOW) {
+    if (detail[k] !== undefined && detail[k] !== null) {
+      const v = Array.isArray(detail[k]) ? detail[k].join(', ') : String(detail[k]);
+      parts.push(k + ': ' + v);
+    }
+  }
+  return parts.join(' · ');
+}
+
+// ── render ───────────────────────────────────────────────────
+function renderEntries(entries) {
+  const list = qs('auditList');
+  if (!entries.length) {
+    list.innerHTML = '<div class="audit-empty">No entries found.</div>';
+    return;
+  }
+
+  list.innerHTML = entries.map(function (e) {
+    const kind   = actionKind(e.action);
+    const detail = fmtDetail(e.detail);
+    const actor  = e.actor_discord_id ? '<@' + e.actor_discord_id + '> (' + e.actor_discord_id + ')' : 'System';
+    return [
+      '<div class="audit-row">',
+      '  <span class="audit-action" data-kind="' + kind + '">' + (e.action || '—') + '</span>',
+      '  <div class="audit-body">',
+      '    <div class="audit-actor">' + actor + '</div>',
+      detail ? '    <div class="audit-detail">' + detail + '</div>' : '',
+      '  </div>',
+      '  <div class="audit-time">' + fmtTime(e.created_at) + '</div>',
+      '</div>'
+    ].join('\n');
+  }).join('\n');
+}
+
+function renderPagination() {
+  const pg = qs('pagination');
+  if (total <= LIMIT) { pg.style.display = 'none'; return; }
+  pg.style.display = 'flex';
+
+  const page     = Math.floor(offset / LIMIT) + 1;
+  const maxPage  = Math.ceil(total / LIMIT);
+  qs('pageInfo').textContent = 'Page ' + page + ' of ' + maxPage + ' (' + total + ' total)';
+  qs('prevBtn').disabled = offset === 0;
+  qs('nextBtn').disabled = offset + LIMIT >= total;
+}
+
+// ── fetch ────────────────────────────────────────────────────
+async function load() {
+  const action = qs('actionFilter').value;
+  const params = new URLSearchParams({ limit: LIMIT, offset: offset });
+  if (action) params.set('action', action);
+
+  qs('auditList').innerHTML = '<div class="loading-row">Loading…</div>';
+  qs('pagination').style.display = 'none';
+
+  try {
+    const r = await fetch(API + '/api/guilds/' + guildId + '/audit?' + params, { headers: headers() });
+    if (r.status === 401 || r.status === 403) {
+      window.location.href = 'index.html';
+      return;
+    }
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.status);
+
+    total = data.total || 0;
+    renderEntries(data.entries || []);
+    renderPagination();
+  } catch (err) {
+    qs('auditList').innerHTML = '<div class="audit-empty">Failed to load: ' + err.message + '</div>';
+  }
+}
+
+// ── init ─────────────────────────────────────────────────────
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  guildId = params.get('guild');
+  if (!guildId || !getToken()) {
+    window.location.href = 'index.html';
+    return;
+  }
+
+  // Preserve guild name if stored
+  const storedName = sessionStorage.getItem('helium_guild_' + guildId + '_name');
+  if (storedName) {
+    qs('guildName').textContent = storedName + ' — Audit Log';
+    qs('backBtn').href = 'server.html?guild=' + guildId;
+  }
+
+  qs('actionFilter').addEventListener('change', function () { offset = 0; load(); });
+  qs('refreshBtn').addEventListener('click',    function () { offset = 0; load(); });
+  qs('prevBtn').addEventListener('click', function () { offset = Math.max(0, offset - LIMIT); load(); });
+  qs('nextBtn').addEventListener('click', function () { offset += LIMIT; load(); });
+
+  await load();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
