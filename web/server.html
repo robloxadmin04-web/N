@@ -48,10 +48,10 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5h3l1 2h4l1-2h3"/><path d="M2.8 3.2h10.4l1.3 6.3v3.1a.9.9 0 0 1-.9.9H2.4a.9.9 0 0 1-.9-.9V9.5z"/></svg>
       <span>Tickets</span>
     </button>
-    <a id="auditTabLink" role="tab" class="tab-link" href="audit.html" title="Audit Log" onclick="this.href='audit.html?guild='+encodeURIComponent(new URLSearchParams(window.location.search).get('id')||'');return true;">
+    <button role="tab" aria-selected="false" data-panel="audit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h9M3.5 8h6M3.5 11.5h4"/></svg>
       <span>Audit</span>
-    </a>
+    </button>
   </div>
 
   <!-- ================= SETTINGS ================= -->
@@ -377,6 +377,45 @@
       </div>
 
       <button class="btn btn-outline btn-block" id="postTicketPanel" type="button">Post the button</button>
+    </div>
+
+  </section>
+
+  <!-- ================= AUDIT LOG ================= -->
+  <section class="panel" id="panel-audit">
+
+    <div class="card">
+      <h2>Audit Log</h2>
+      <p class="desc">Every action taken through the dashboard or bot commands, newest first.</p>
+
+      <div class="divider"></div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <select id="auditActionFilter" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:7px 12px;font-size:14px;min-width:180px;">
+          <option value="">All actions</option>
+          <option value="premium.grant">Premium grant</option>
+          <option value="premium.revoke">Premium revoke</option>
+          <option value="premium.purchase">Premium purchase</option>
+          <option value="settings.update">Settings update</option>
+          <option value="announce.queued">Announce</option>
+          <option value="ticket.panel.queued">Ticket panel</option>
+          <option value="accesskey.bind">Key bind</option>
+          <option value="accesskey.create">Key create</option>
+          <option value="accesskey.delete">Key delete</option>
+          <option value="server.reset">Server reset</option>
+        </select>
+        <button class="btn" id="auditRefreshBtn" type="button" style="padding:7px 16px;font-size:14px;">Refresh</button>
+      </div>
+
+      <div id="auditList" style="display:flex;flex-direction:column;gap:6px;">
+        <div style="text-align:center;color:var(--text-faint);padding:32px;font-size:14px;">Click Refresh to load entries.</div>
+      </div>
+
+      <div id="auditPagination" style="display:none;gap:8px;justify-content:center;margin-top:20px;align-items:center;">
+        <button class="btn" id="auditPrevBtn" type="button" style="padding:6px 14px;font-size:13px;" disabled>← Prev</button>
+        <span id="auditPageInfo" style="font-size:13px;color:var(--text-dim);"></span>
+        <button class="btn" id="auditNextBtn" type="button" style="padding:6px 14px;font-size:13px;">Next →</button>
+      </div>
     </div>
 
   </section>
@@ -884,6 +923,131 @@
   loadMappings();
   loadPremium();
   loadStatus();
+
+  // ── Audit Log ─────────────────────────────────────────────
+  var AUDIT_LIMIT  = 50;
+  var auditOffset  = 0;
+  var auditTotal   = 0;
+
+  var ACTION_KIND = {
+    'premium.grant':    'grant',
+    'premium.purchase': 'grant',
+    'premium.revoke':   'revoke',
+    'settings.update':  'settings',
+    'server.reset':     'reset',
+    'accesskey.bind':   'access',
+    'accesskey.create': 'access',
+    'accesskey.delete': 'access',
+    'announce.queued':  'announce'
+  };
+
+  var ACTION_COLOR = {
+    grant:    '#4ade80',
+    revoke:   '#f87171',
+    settings: '#60a5fa',
+    reset:    '#f97316',
+    access:   '#a78bfa',
+    announce: '#facc15'
+  };
+
+  function auditFmtTime(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function auditFmtDetail(detail) {
+    if (!detail || typeof detail !== 'object') return '';
+    var SHOW = ['target', 'tier', 'days', 'title', 'channel_id', 'keys', 'key', 'label'];
+    var parts = [];
+    SHOW.forEach(function (k) {
+      if (detail[k] !== undefined && detail[k] !== null) {
+        var v = Array.isArray(detail[k]) ? detail[k].join(', ') : String(detail[k]);
+        parts.push(k + ': ' + v);
+      }
+    });
+    return parts.join(' · ');
+  }
+
+  function renderAuditEntries(entries) {
+    var list = document.getElementById('auditList');
+    if (!entries.length) {
+      list.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:32px;font-size:14px;">No entries found.</div>';
+      return;
+    }
+    list.innerHTML = entries.map(function (e) {
+      var kind   = ACTION_KIND[e.action] || '';
+      var color  = ACTION_COLOR[kind] || 'var(--text-dim)';
+      var detail = auditFmtDetail(e.detail);
+      var actor  = e.actor_discord_id ? e.actor_discord_id : 'System';
+      return [
+        '<div style="display:grid;grid-template-columns:150px 1fr auto;gap:12px;align-items:start;',
+        'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;">',
+        '<span style="font-family:ui-monospace,monospace;font-size:11px;color:' + color + ';',
+        'background:var(--surface-3);border-radius:5px;padding:2px 7px;white-space:nowrap;',
+        'overflow:hidden;text-overflow:ellipsis;">' + esc(e.action || '—') + '</span>',
+        '<div>',
+        '<div style="font-weight:500;font-size:14px;">' + esc(actor) + '</div>',
+        detail ? '<div style="font-size:12px;color:var(--text-dim);font-family:ui-monospace,monospace;word-break:break-all;">' + esc(detail) + '</div>' : '',
+        '</div>',
+        '<div style="font-size:12px;color:var(--text-faint);white-space:nowrap;">' + auditFmtTime(e.created_at) + '</div>',
+        '</div>'
+      ].join('');
+    }).join('');
+  }
+
+  function renderAuditPagination() {
+    var pg = document.getElementById('auditPagination');
+    if (auditTotal <= AUDIT_LIMIT) { pg.style.display = 'none'; return; }
+    pg.style.display = 'flex';
+    var page    = Math.floor(auditOffset / AUDIT_LIMIT) + 1;
+    var maxPage = Math.ceil(auditTotal / AUDIT_LIMIT);
+    document.getElementById('auditPageInfo').textContent =
+      'Page ' + page + ' of ' + maxPage + ' (' + auditTotal + ' total)';
+    document.getElementById('auditPrevBtn').disabled = auditOffset === 0;
+    document.getElementById('auditNextBtn').disabled = auditOffset + AUDIT_LIMIT >= auditTotal;
+  }
+
+  async function loadAudit() {
+    var action = document.getElementById('auditActionFilter').value;
+    var params = '?limit=' + AUDIT_LIMIT + '&offset=' + auditOffset;
+    if (action) params += '&action=' + encodeURIComponent(action);
+
+    document.getElementById('auditList').innerHTML =
+      '<div style="text-align:center;color:var(--text-faint);padding:32px;font-size:14px;">Loading…</div>';
+    document.getElementById('auditPagination').style.display = 'none';
+
+    try {
+      var data = await api(BASE + '/audit' + params);
+      auditTotal = data.total || 0;
+      renderAuditEntries(data.entries || []);
+      renderAuditPagination();
+    } catch (e) {
+      document.getElementById('auditList').innerHTML =
+        '<div style="text-align:center;color:var(--text-faint);padding:32px;font-size:14px;">Failed to load: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  document.getElementById('auditActionFilter').addEventListener('change', function () {
+    auditOffset = 0; loadAudit();
+  });
+  document.getElementById('auditRefreshBtn').addEventListener('click', function () {
+    auditOffset = 0; loadAudit();
+  });
+  document.getElementById('auditPrevBtn').addEventListener('click', function () {
+    auditOffset = Math.max(0, auditOffset - AUDIT_LIMIT); loadAudit();
+  });
+  document.getElementById('auditNextBtn').addEventListener('click', function () {
+    auditOffset += AUDIT_LIMIT; loadAudit();
+  });
+
+  // Auto-load when tab is opened
+  document.querySelectorAll('.tabs button[data-panel="audit"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (document.getElementById('auditList').children.length <= 1) loadAudit();
+    });
+  });
 })();
 </script>
 
