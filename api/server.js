@@ -5,8 +5,9 @@
 // ============================================================
 'use strict';
 
-const express = require('express');
-const cors = require('cors');
+const express  = require('express');
+const cors     = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const {
   db,
@@ -17,7 +18,8 @@ const {
   requireGuildAccess,
   listManageableGuilds,
   enqueueJob,
-  logAudit
+  logAudit,
+  timingSafeCompare
 } = require('./lib');
 
 const app = express();
@@ -26,12 +28,59 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const SITE_WEBHOOK_SECRET = process.env.SITE_WEBHOOK_SECRET || '';
 
 app.use(express.json({ limit: '256kb' }));
+
+// ------------------------------------------------------------
+// CORS — restrict to the configured dashboard origin.
+// Set ALLOWED_ORIGIN in your environment (e.g. https://yourdomain.com).
+// Falls back to '*' only if unset, which is fine for local dev.
+// ------------------------------------------------------------
 app.use(
   cors({
-    origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN.split(','),
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-discord-token', 'x-webhook-secret']
+    origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN.split(',').map(function (o) { return o.trim(); }),
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-discord-token', 'x-webhook-secret'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })
 );
+
+// ------------------------------------------------------------
+// Rate limiting
+//
+// Three tiers:
+//   globalLimiter  — catches runaway clients before they hit anything
+//   authLimiter    — tight cap on sign-in / access-check endpoints
+//   apiLimiter     — normal dashboard API calls
+// ------------------------------------------------------------
+
+// 300 requests per minute per IP across the whole API.
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, slow down.' }
+});
+
+// 10 attempts per minute on auth endpoints.
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth attempts, try again in a minute.' }
+});
+
+// 60 requests per minute on normal API routes.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, try again in a minute.' }
+});
+
+app.use(globalLimiter);
+app.use('/api/access', authLimiter);
+app.use('/api', apiLimiter);
 
 // ------------------------------------------------------------
 // health
@@ -483,21 +532,24 @@ app.get('/api/guilds/:guildId/status', requireUser, requireGuildAccess, async fu
 });
 
 app.post('/api/guilds/:guildId/status', requireUser, requireGuildAccess, async function (req, res) {
-  const title = String(req.body.title || '').trim();
-  const state = String(req.body.state || 'working').trim();
+  const title    = String(req.body.title    || '').trim().slice(0, 100);
+  const gameName = String(req.body.game_name || '').trim().slice(0, 100) || null;
+  const note     = String(req.body.note     || '').trim().slice(0, 300) || null;
+  const state    = String(req.body.state    || 'working').trim();
 
   if (!title) return bad(res, 400, 'Missing title');
-  if (VALID_STATES.indexOf(state) === -1) return bad(res, 400, 'Invalid state');
+  if (title.length < 1)                          return bad(res, 400, 'Title is too short');
+  if (VALID_STATES.indexOf(state) === -1)        return bad(res, 400, 'Invalid state');
 
   const { data, error } = await db
     .from('status_entries')
     .insert({
-      guild_id: req.guildId,
-      title: title,
-      game_name: req.body.game_name || null,
-      state: state,
-      note: req.body.note || null,
-      position: Number(req.body.position || 0)
+      guild_id:  req.guildId,
+      title:     title,
+      game_name: gameName,
+      state:     state,
+      note:      note,
+      position:  Math.max(0, Math.min(9999, Number(req.body.position || 0)))
     })
     .select()
     .single();
@@ -514,6 +566,13 @@ app.patch('/api/guilds/:guildId/status/:entryId', requireUser, requireGuildAcces
     if (Object.prototype.hasOwnProperty.call(req.body, k)) patch[k] = req.body[k];
   });
 
+  // Sanitize string fields so someone can't smuggle giant payloads via PATCH.
+  if (patch.title)     patch.title     = String(patch.title).trim().slice(0, 100);
+  if (patch.game_name) patch.game_name = String(patch.game_name).trim().slice(0, 100) || null;
+  if (patch.note)      patch.note      = String(patch.note).trim().slice(0, 300) || null;
+  if (patch.position !== undefined) patch.position = Math.max(0, Math.min(9999, Number(patch.position)));
+
+  if (patch.title !== undefined && patch.title.length === 0) return bad(res, 400, 'Title cannot be empty');
   if (patch.state && VALID_STATES.indexOf(patch.state) === -1) return bad(res, 400, 'Invalid state');
   if (Object.keys(patch).length === 0) return bad(res, 400, 'Nothing to update');
 
@@ -658,7 +717,7 @@ app.get('/api/guilds/:guildId/audit', requireUser, requireGuildAccess, async fun
 // ------------------------------------------------------------
 app.post('/api/webhooks/purchase', async function (req, res) {
   if (!SITE_WEBHOOK_SECRET) return bad(res, 503, 'Webhook not configured');
-  if (req.headers['x-webhook-secret'] !== SITE_WEBHOOK_SECRET) return bad(res, 401, 'Bad secret');
+  if (!timingSafeCompare(req.headers['x-webhook-secret'] || '', SITE_WEBHOOK_SECRET)) return bad(res, 401, 'Bad secret');
 
   const guildId = String(req.body.guild_id || '').trim();
   const discordId = String(req.body.discord_id || '').trim();
