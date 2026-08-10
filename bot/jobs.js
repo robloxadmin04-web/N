@@ -12,7 +12,7 @@ const RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 
 // Built-in ticket reasons. Must match bot/tickets.js.
-const REASONS = [
+const DEFAULT_REASONS = [
   { value: 'support',  label: 'General support', description: 'Questions or help with the server' },
   { value: 'purchase', label: 'Purchase or premium', description: 'Buying, codes, roles or billing' },
   { value: 'report',   label: 'Report a problem', description: 'Report a user, bug or issue' },
@@ -217,6 +217,18 @@ async function runJob(client, db, job) {
     const channel = guild.channels.cache.get(p.channel_id);
     if (!channel) throw new Error('Panel channel not found');
 
+    // Load custom reasons from DB, fall back to defaults if none set.
+    const { data: customReasons } = await db
+      .from('ticket_reasons')
+      .select('value, label, description, position')
+      .eq('guild_id', job.guild_id)
+      .order('position', { ascending: true })
+      .limit(5);
+
+    const reasons = (customReasons && customReasons.length > 0)
+      ? customReasons
+      : DEFAULT_REASONS;
+
     const embed = new EmbedBuilder()
       .setTitle(String(p.title || 'Need help?').slice(0, 250))
       .setDescription(String(p.message || 'Choose a reason below to open a private ticket. Only you and the staff team can see it.').slice(0, 2000))
@@ -227,8 +239,8 @@ async function runJob(client, db, job) {
       new StringSelectMenuBuilder()
         .setCustomId('ticket:pick')
         .setPlaceholder('Choose a reason to open a ticket')
-        .addOptions(REASONS.map(function (r) {
-          return { label: r.label, description: r.description, value: r.value };
+        .addOptions(reasons.map(function (r) {
+          return { label: r.label, description: r.description || '', value: r.value };
         }))
     );
 
