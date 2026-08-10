@@ -191,7 +191,13 @@ async function listManageableGuilds(req) {
 // requireGuildAccess
 // Confirms the caller really controls :guildId, then caches the
 // grant in guild_access so later calls are one cheap query.
+//
+// SECURITY FIX: cache row now includes granted_at. Entries older
+// than GUILD_ACCESS_TTL_MS are treated as stale and re-verified
+// against Discord so a removed admin loses access within the hour.
 // ------------------------------------------------------------
+const GUILD_ACCESS_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 async function requireGuildAccess(req, res, next) {
   try {
     const guildId = req.params.guildId;
@@ -199,23 +205,43 @@ async function requireGuildAccess(req, res, next) {
 
     const { data: cached } = await db
       .from('guild_access')
-      .select('guild_id')
+      .select('guild_id, granted_at')
       .eq('user_id', req.dashUser.id)
       .eq('guild_id', guildId)
       .maybeSingle();
 
-    if (cached) {
+    // Only trust the cache if it was granted recently.
+    const cacheAge = cached && cached.granted_at
+      ? Date.now() - new Date(cached.granted_at).getTime()
+      : Infinity;
+
+    if (cached && cacheAge < GUILD_ACCESS_TTL_MS) {
       req.guildId = guildId;
       return next();
     }
 
+    // Cache is stale or missing — re-verify with Discord.
     const guilds = await listManageableGuilds(req);
     const match = guilds.find(function (g) { return g.id === guildId; });
-    if (!match) return bad(res, 403, 'You do not manage this server');
+    if (!match) {
+      // Remove stale cache entry so the user is not accidentally let in.
+      if (cached) {
+        await db.from('guild_access')
+          .delete()
+          .eq('user_id', req.dashUser.id)
+          .eq('guild_id', guildId);
+      }
+      return bad(res, 403, 'You do not manage this server');
+    }
     if (!match.bot_present) return bad(res, 409, 'The bot is not in this server yet');
 
     await db.from('guild_access').upsert(
-      { user_id: req.dashUser.id, guild_id: guildId, role: 'admin' },
+      {
+        user_id:    req.dashUser.id,
+        guild_id:   guildId,
+        role:       'admin',
+        granted_at: new Date().toISOString()
+      },
       { onConflict: 'user_id,guild_id' }
     );
 
@@ -225,6 +251,27 @@ async function requireGuildAccess(req, res, next) {
     console.error('requireGuildAccess failed:', e.message);
     return bad(res, e.status || 500, e.message);
   }
+}
+
+// ------------------------------------------------------------
+// timingSafeCompare
+// Use this for any secret comparison (webhook tokens, API keys)
+// to prevent timing attacks that guess secrets byte-by-byte.
+// ------------------------------------------------------------
+const crypto = require('crypto');
+
+function timingSafeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  // Pad both to the same length so the comparison always takes the
+  // same amount of time regardless of where they differ.
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) {
+    // Still run the comparison to avoid a timing leak on length.
+    crypto.timingSafeEqual(Buffer.alloc(aBuf.length), Buffer.alloc(aBuf.length));
+    return false;
+  }
+  return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
 // ------------------------------------------------------------
@@ -311,5 +358,6 @@ module.exports = {
   requireGuildAccess,
   listManageableGuilds,
   enqueueJob,
-  logAudit
+  logAudit,
+  timingSafeCompare
 };
