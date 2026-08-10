@@ -240,7 +240,9 @@ async function runJob(client, db, job) {
         .setCustomId('ticket:pick')
         .setPlaceholder('Choose a reason to open a ticket')
         .addOptions(reasons.map(function (r) {
-          return { label: r.label, description: r.description || '', value: r.value };
+          var opt = { label: r.label, value: r.value };
+          if (r.description) opt.description = r.description;
+          return opt;
         }))
     );
 
