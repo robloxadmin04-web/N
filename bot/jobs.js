@@ -567,4 +567,82 @@ function startReconcile(client, db) {
   console.log('Reconcile started');
 }
 
-module.exports = { startJobLoop, startPremiumSync, startReconcile, renderStatusBoard };
+// ------------------------------------------------------------
+// ticket role expiry
+//
+// Runs every 5 minutes. Checks ticket_role_grants for rows
+// where expires_at has passed, removes the role from the member,
+// DMs them, then deletes the grant row.
+// ------------------------------------------------------------
+const TICKET_ROLE_INTERVAL_MS = 5 * 60 * 1000;
+
+function startTicketRoleExpiry(client, db) {
+  async function run() {
+    try {
+      const nowIso = new Date().toISOString();
+
+      const { data: expired } = await db
+        .from('ticket_role_grants')
+        .select('*')
+        .lt('expires_at', nowIso)
+        .limit(100);
+
+      for (const grant of expired || []) {
+        try {
+          const guild = client.guilds.cache.get(grant.guild_id);
+          if (!guild) continue;
+
+          const member = await guild.members.fetch(grant.discord_id).catch(() => null);
+          const role   = guild.roles.cache.get(grant.role_id);
+
+          // Remove the role if both member and role still exist.
+          if (member && role) {
+            await member.roles.remove(role).catch(function (e) {
+              console.error(
+                'Ticket role expiry: could not remove ' + role.name +
+                ' from ' + member.user.tag + ': ' + e.message
+              );
+            });
+          }
+
+          // DM the user.
+          const roleName = role ? role.name : 'a role';
+          const guildName = guild.name;
+
+          if (member) {
+            await member.user.send(
+              '⏰ Your **' + roleName + '** role in **' + guildName +
+              '** has expired and has been removed.'
+            ).catch(function () {
+              // DMs may be closed — ignore silently.
+            });
+          }
+
+          // Delete the grant row regardless of whether the removal succeeded.
+          await db
+            .from('ticket_role_grants')
+            .delete()
+            .eq('guild_id', grant.guild_id)
+            .eq('discord_id', grant.discord_id)
+            .eq('role_id', grant.role_id);
+
+          console.log(
+            'Ticket role expiry: removed ' + roleName +
+            ' from ' + grant.discord_id + ' in ' + guildName
+          );
+        } catch (e) {
+          console.error('Ticket role expiry error on grant ' + grant.id + ': ' + e.message);
+        }
+      }
+    } catch (e) {
+      console.error('Ticket role expiry loop error: ' + e.message);
+    }
+  }
+
+  setTimeout(run, 60000); // first run after 1 minute
+  setInterval(run, TICKET_ROLE_INTERVAL_MS);
+
+  console.log('Ticket role expiry started');
+}
+
+module.exports = { startJobLoop, startPremiumSync, startReconcile, startTicketRoleExpiry, renderStatusBoard };
