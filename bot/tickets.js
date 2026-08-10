@@ -40,16 +40,31 @@ const TID = {
 
 // Built-in ticket reasons. value is used in the channel name + DB;
 // label + description show in the dropdown; emoji is optional.
-const REASONS = [
-  { value: 'support',  label: 'General support', description: 'Questions or help with the server' },
-  { value: 'purchase', label: 'Purchase or premium', description: 'Buying, codes, roles or billing' },
-  { value: 'report',   label: 'Report a problem', description: 'Report a user, bug or issue' },
-  { value: 'other',    label: 'Something else', description: 'Anything not covered above' }
+const DEFAULT_REASONS = [
+  { value: 'support',  label: 'General support',     description: 'Questions or help with the server' },
+  { value: 'purchase', label: 'Purchase or premium',  description: 'Buying, codes, roles or billing'   },
+  { value: 'report',   label: 'Report a problem',     description: 'Report a user, bug or issue'       },
+  { value: 'other',    label: 'Something else',        description: 'Anything not covered above'        }
 ];
 
-function reasonMeta(value) {
-  return REASONS.find(function (r) { return r.value === value; }) ||
-    { value: 'support', label: 'General support', description: '' };
+// Load custom reasons for a guild from the DB.
+// Falls back to DEFAULT_REASONS if none are set.
+async function loadReasons(db, guildId) {
+  const { data } = await db
+    .from('ticket_reasons')
+    .select('value, label, description, position')
+    .eq('guild_id', guildId)
+    .order('position', { ascending: true })
+    .limit(5);
+
+  if (!data || data.length === 0) return DEFAULT_REASONS;
+  return data;
+}
+
+function reasonMeta(value, reasons) {
+  const list = reasons || DEFAULT_REASONS;
+  return list.find(function (r) { return r.value === value; }) ||
+    { value: value, label: value, description: '' };
 }
 
 // ------------------------------------------------------------
@@ -120,6 +135,8 @@ async function handleTicketPanel(interaction, db) {
     ]));
   }
 
+  const reasons = await loadReasons(db, interaction.guildId);
+
   const board = new EmbedBuilder()
     .setTitle(title)
     .setDescription(message)
@@ -130,8 +147,8 @@ async function handleTicketPanel(interaction, db) {
     new StringSelectMenuBuilder()
       .setCustomId(TID.pick)
       .setPlaceholder('Choose a reason to open a ticket')
-      .addOptions(REASONS.map(function (r) {
-        return { label: r.label, description: r.description, value: r.value };
+      .addOptions(reasons.map(function (r) {
+        return { label: r.label, description: r.description || '', value: r.value };
       }))
   );
 
@@ -223,8 +240,6 @@ async function handleTicketConfig(interaction, db) {
 async function openTicket(interaction, db, reasonValue) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const reason = reasonMeta(reasonValue);
-
   const settings = await getSettings(db, interaction.guildId);
 
   if (!settings.ticket_category_id) {
@@ -232,6 +247,9 @@ async function openTicket(interaction, db, reasonValue) {
       'Staff need to run /ticketconfig first.'
     ]));
   }
+
+  const reasons = await loadReasons(db, interaction.guildId);
+  const reason  = reasonMeta(reasonValue, reasons);
 
   // one open ticket per person
   const { data: already } = await db
@@ -450,6 +468,8 @@ async function endTicket(interaction, db, mode) {
     embeds: [panel(mode === 'delete' ? 'Deleting ticket' : 'Closing ticket', ['Saving transcript first...'])]
   });
 
+  const closingReasons = await loadReasons(db, interaction.guildId);
+
   // transcript
   let transcript = '';
   try {
@@ -470,7 +490,7 @@ async function endTicket(interaction, db, mode) {
       await logChannel.send({
         embeds: [panel(mode === 'delete' ? 'Ticket deleted' : 'Ticket closed', [
           'Channel: #' + interaction.channel.name,
-          'Reason: ' + reasonMeta(row.reason).label,
+          'Reason: ' + reasonMeta(row.reason, closingReasons).label,
           'Opened by: <@' + row.opener_id + '>',
           'Closed by: <@' + interaction.user.id + '>'
         ])],
@@ -584,6 +604,8 @@ async function handleTicketSetup(interaction, db) {
 
   await db.from('guild_settings').upsert(patch, { onConflict: 'guild_id' });
 
+  const setupReasons = await loadReasons(db, interaction.guildId);
+
   const board = new EmbedBuilder()
     .setTitle('Need help?')
     .setDescription('Choose a reason below to open a private ticket. Only you and the staff team can see it.')
@@ -594,8 +616,8 @@ async function handleTicketSetup(interaction, db) {
     new StringSelectMenuBuilder()
       .setCustomId(TID.pick)
       .setPlaceholder('Choose a reason to open a ticket')
-      .addOptions(REASONS.map(function (r) {
-        return { label: r.label, description: r.description, value: r.value };
+      .addOptions(setupReasons.map(function (r) {
+        return { label: r.label, description: r.description || '', value: r.value };
       }))
   );
 
