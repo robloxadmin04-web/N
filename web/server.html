@@ -48,7 +48,7 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5h3l1 2h4l1-2h3"/><path d="M2.8 3.2h10.4l1.3 6.3v3.1a.9.9 0 0 1-.9.9H2.4a.9.9 0 0 1-.9-.9V9.5z"/></svg>
       <span>Tickets</span>
     </button>
-    <a id="auditTabLink" role="tab" class="tab-link" href="#" title="Audit Log">
+    <a id="auditTabLink" role="tab" class="tab-link" href="audit.html" title="Audit Log" onclick="this.href='audit.html?guild='+encodeURIComponent(new URLSearchParams(window.location.search).get('id')||'');return true;">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h9M3.5 8h6M3.5 11.5h4"/></svg>
       <span>Audit</span>
     </a>
@@ -400,12 +400,6 @@
   }
 
   var BASE = '/api/guilds/' + encodeURIComponent(GID);
-
-  // Wire up audit log tab link
-  var auditLink = document.getElementById('auditTabLink');
-  if (auditLink) {
-    auditLink.href = 'audit.html?guild=' + encodeURIComponent(GID);
-  }
 
   var STATE_STYLE = {
     working: 'solid',
