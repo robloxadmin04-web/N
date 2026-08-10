@@ -224,19 +224,17 @@ client.on(Events.GuildDelete, async function (guild) {
 
 client.on(Events.GuildMemberAdd, async function (member) {
   try {
-    // FIX: fetch full member data if partial so that
-    // member.user.username is always available and
-    // the welcome mention shows @username not raw <@ID>.
-    if (member.partial) {
-      try {
-        member = await member.fetch();
-      } catch (fetchErr) {
-        console.error(
-          'Failed to fetch partial member: ' +
-            fetchErr.message
-        );
-        return;
-      }
+    // FIX: force-fetch the full member object so that
+    // member.user.username is always resolved regardless
+    // of cache state — prevents <@RAW_ID> in welcome message.
+    try {
+      member = await member.guild.members.fetch(member.id);
+    } catch (fetchErr) {
+      console.error(
+        'Failed to fetch member: ' +
+          fetchErr.message
+      );
+      return;
     }
 
     const s = await getSettings(member.guild.id);
