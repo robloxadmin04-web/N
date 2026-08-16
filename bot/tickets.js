@@ -322,7 +322,7 @@ async function openTicket(interaction, db, reasonValue) {
 
   const welcome = new EmbedBuilder()
     .setTitle('Ticket opened - ' + reason.label)
-    .setDescription('Thanks <@' + interaction.user.id + '>, staff will be with you shortly. Describe your issue below.')
+    .setDescription('Thanks for opening a ticket, staff will be with you shortly. Describe your issue below.')
     .setColor(0xffffff)
     .addFields({ name: 'Reason', value: reason.label });
 
@@ -333,12 +333,18 @@ async function openTicket(interaction, db, reasonValue) {
     new ButtonBuilder().setCustomId(TID.delete).setLabel('Delete').setStyle(ButtonStyle.Danger)
   );
 
-  const mention = settings.ticket_staff_role_id ? '<@&' + settings.ticket_staff_role_id + '>' : '';
+  const roleMention = settings.ticket_staff_role_id ? '<@&' + settings.ticket_staff_role_id + '>' : '';
+  const openerMention = '<@' + interaction.user.id + '>';
+  const content = [roleMention, openerMention, 'new ticket'].filter(Boolean).join(' ');
 
   await channel.send({
-    content: mention ? mention + ' new ticket' : undefined,
+    content,
     embeds: [welcome],
-    components: [controls]
+    components: [controls],
+    allowedMentions: {
+      users: [interaction.user.id],
+      roles: settings.ticket_staff_role_id ? [settings.ticket_staff_role_id] : []
+    }
   });
 
   await db.from('audit_log').insert({
