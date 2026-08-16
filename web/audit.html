@@ -202,6 +202,14 @@ function headers() {
 
 function qs(id) { return document.getElementById(id); }
 
+function esc(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .split('&').join('&amp;')
+    .split('<').join('&lt;')
+    .split('>').join('&gt;')
+    .split('"').join('&quot;');
+}
+
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -227,7 +235,7 @@ function fmtDetail(detail) {
   for (const k of SHOW) {
     if (detail[k] !== undefined && detail[k] !== null) {
       const v = Array.isArray(detail[k]) ? detail[k].join(', ') : String(detail[k]);
-      parts.push(k + ': ' + v);
+      parts.push(esc(k) + ': ' + esc(v));
     }
   }
   return parts.join(' · ');
@@ -244,10 +252,10 @@ function renderEntries(entries) {
   list.innerHTML = entries.map(function (e) {
     const kind   = actionKind(e.action);
     const detail = fmtDetail(e.detail);
-    const actor  = e.actor_discord_id ? '<@' + e.actor_discord_id + '> (' + e.actor_discord_id + ')' : 'System';
+    const actor  = e.actor_discord_id ? '@' + esc(e.actor_discord_id) + ' (' + esc(e.actor_discord_id) + ')' : 'System';
     return [
       '<div class="audit-row">',
-      '  <span class="audit-action" data-kind="' + kind + '">' + (e.action || '—') + '</span>',
+      '  <span class="audit-action" data-kind="' + esc(kind) + '">' + esc(e.action || '—') + '</span>',
       '  <div class="audit-body">',
       '    <div class="audit-actor">' + actor + '</div>',
       detail ? '    <div class="audit-detail">' + detail + '</div>' : '',
