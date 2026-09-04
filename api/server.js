@@ -27,6 +27,10 @@ const PORT = process.env.PORT || 3000;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const SITE_WEBHOOK_SECRET = process.env.SITE_WEBHOOK_SECRET || '';
 
+// FIX: Render runs behind a reverse proxy. Without this, express-rate-limit
+// throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR and rejects every request.
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '256kb' }));
 
 // ------------------------------------------------------------
