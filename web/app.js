@@ -172,9 +172,14 @@ async function requireAuth() {
 
 // ------------------------------------------------------------
 // API client
+//
+// FIX: on a 429 response, automatically wait 3 seconds and
+// retry once instead of immediately throwing. This handles
+// the burst of requests that Discord sees right after a
+// Render cold start wakes the server up.
 // ------------------------------------------------------------
 
-async function api(path, options) {
+async function api(path, options, _retried) {
   var opts = options || {};
   var session = await getSession();
 
@@ -214,7 +219,13 @@ async function api(path, options) {
       throw new Error('Your Discord session expired. Sign out and sign in again.');
     }
 
+    // FIX: auto-retry once after 3 seconds on rate limit instead of
+    // throwing immediately. Covers cold-start burst on Render free tier.
     if (res.status === 429 || msg.indexOf('Discord API 429') !== -1) {
+      if (!_retried) {
+        await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+        return api(path, options, true);
+      }
       throw new Error('Discord is throttling requests. Wait a few seconds, then refresh.');
     }
 
