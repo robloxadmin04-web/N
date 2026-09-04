@@ -73,8 +73,13 @@ async function discordFetch(path, token, isBot, attempt) {
 // The server page loads settings, channels and roles at once.
 // Without this, all three would ask Discord for the same guild
 // list in the same instant and trip the rate limit.
+//
+// FIX: increased TTL from 30s to 5 minutes so that after a
+// Render cold start the cache survives long enough to serve
+// the burst of simultaneous dashboard requests without
+// hammering the Discord API and triggering a 429.
 // ------------------------------------------------------------
-const GUILD_TTL_MS = 30000;
+const GUILD_TTL_MS = 5 * 60 * 1000; // FIX: was 30000 (30s), now 5 minutes
 const guildCache = new Map();
 const guildInflight = new Map();
 
